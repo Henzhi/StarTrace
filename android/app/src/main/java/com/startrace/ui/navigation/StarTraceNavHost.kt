@@ -68,7 +68,19 @@ fun StarTraceNavHost() {
             startDestination = TopLevelRoute.Galaxy.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(TopLevelRoute.Galaxy.route) { GalaxyScreen() }
+            composable(TopLevelRoute.Galaxy.route) {
+                GalaxyScreen(
+                    onNavigateToRecord = {
+                        navController.navigate(TopLevelRoute.Record.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
+            }
             composable(TopLevelRoute.Record.route) { RecordScreen() }
             composable(TopLevelRoute.Story.route) { StoryScreen() }
             composable(TopLevelRoute.Profile.route) { ProfileScreen() }

@@ -36,6 +36,12 @@ interface FragmentDao {
     @Query("DELETE FROM fragments WHERE id IN (:ids)")
     suspend fun deleteByIds(ids: List<String>)
 
+    @Query("UPDATE fragments SET is_archived = 1 WHERE id IN (:ids)")
+    suspend fun archiveByIds(ids: List<String>)
+
     @Query("SELECT COUNT(*) FROM fragments WHERE is_archived = 0")
     fun observeCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM fragments WHERE domain_tag = :domain")
+    suspend fun countByDomain(domain: String): Int
 }
