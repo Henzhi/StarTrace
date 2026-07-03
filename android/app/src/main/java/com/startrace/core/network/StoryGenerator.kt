@@ -5,7 +5,9 @@ import com.startrace.core.database.entity.LLMConfigEntity
 import com.startrace.core.database.entity.StoryEntity
 import com.startrace.core.security.KeyStoreManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
@@ -222,7 +224,7 @@ class StoryGenerator @Inject constructor(
             }
         }
         emit(TokenEvent.Complete)
-    }.flowOn(Dispatchers.IO)
+    }.flowOn(Dispatchers.IO).buffer(Channel.BUFFERED)
 
     private fun domainEmoji(tag: String): String = when (tag) {
         "world" -> "🌍"

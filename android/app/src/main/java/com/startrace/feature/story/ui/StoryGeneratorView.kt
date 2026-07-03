@@ -34,7 +34,7 @@ fun StoryGeneratorView(
         containerColor = StarColors.Background,
         topBar = {
             TopAppBar(
-                title = { Text("生成故事", color = StarColors.OnBackground) },
+                title = { Text("星辰编织", color = StarColors.OnBackground) },
                 navigationIcon = {
                     IconButton(onClick = onClose) { Icon(Icons.Default.ArrowBack, "返回", tint = StarColors.OnSurface) }
                 },
@@ -127,7 +127,8 @@ private fun StreamingView(text: String, modifier: Modifier = Modifier) {
 private fun ResultView(story: com.startrace.core.database.entity.StoryEntity, onSave: () -> Unit, onRetry: () -> Unit, onBack: () -> Unit) {
     Column(Modifier.padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = StarColors.Primary.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) { Text(story.style, Modifier.padding(horizontal = 8.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall, color = StarColors.Primary) }
+            val styleLabel = when (story.style) { "scifi"->"🚀科幻" "fantasy"->"🧙奇幻" "realistic"->"📷现实" "prose"->"🌸散文" "poetry"->"🎵诗歌" "mystery"->"🔍悬疑" else->story.style }
+            Surface(color = StarColors.Primary.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) { Text(styleLabel, Modifier.padding(horizontal = 8.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall, color = StarColors.Primary) }
         }; Spacer(Modifier.height(12.dp))
         Text(story.title, style = MaterialTheme.typography.headlineSmall, color = StarColors.OnBackground, fontWeight = FontWeight.Bold); Spacer(Modifier.height(12.dp))
         LazyColumn(Modifier.weight(1f)) { item { Text(story.content, style = MaterialTheme.typography.bodyMedium, color = StarColors.OnSurface) } }; Spacer(Modifier.height(12.dp))

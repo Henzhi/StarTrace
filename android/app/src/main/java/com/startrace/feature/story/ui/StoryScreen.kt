@@ -70,7 +70,7 @@ fun StoryScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("📖", style = MaterialTheme.typography.displayMedium)
                     Spacer(Modifier.height(12.dp))
-                    Text("还没有故事", style = MaterialTheme.typography.titleMedium, color = StarColors.OnBackground)
+                    Text("星辰书库", style = MaterialTheme.typography.titleMedium, color = StarColors.OnBackground)
                     Text("用 AI 将灵感碎片编织成故事", style = MaterialTheme.typography.bodySmall, color = StarColors.OnSurface)
                     Spacer(Modifier.height(16.dp))
                     Button(onClick = onNavigateToGenerate, colors = ButtonDefaults.buttonColors(containerColor = StarColors.Primary)) {
