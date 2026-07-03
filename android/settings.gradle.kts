@@ -1,19 +1,17 @@
 pluginManagement {
     repositories {
-        google {
-            content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
-                includeGroupByRegex("androidx.*")
-            }
-        }
-        mavenCentral()
+        maven { url = uri("https://repo.huaweicloud.com/repository/maven/google/") }
+        maven { url = uri("https://repo.huaweicloud.com/repository/maven/") }
         gradlePluginPortal()
+        google()
+        mavenCentral()
     }
 }
 
-dependencyResolution {
+dependencyResolutionManagement {
     repositories {
+        maven { url = uri("https://repo.huaweicloud.com/repository/maven/google/") }
+        maven { url = uri("https://repo.huaweicloud.com/repository/maven/") }
         google()
         mavenCentral()
     }
