@@ -15,6 +15,7 @@ build/
 
 # ===== Android =====
 local.properties
+google-services.json
 *.apk
 *.aab
 *.ap_
