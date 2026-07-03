@@ -3,223 +3,124 @@ package com.startrace.feature.story.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.startrace.core.database.entity.StoryEntity
 import com.startrace.design.theme.StarColors
-import com.startrace.feature.fragment.ui.component.getDomainDisplay
-import com.startrace.feature.story.viewmodel.StoryGeneratorViewModel
+import com.startrace.feature.story.viewmodel.StoryListViewModel
+import java.text.SimpleDateFormat
+import java.util.*
 
+/**
+ * 故事页 — 故事库列表 + 生成入口
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StoryScreen(
-    viewModel: StoryGeneratorViewModel = hiltViewModel()
+    onNavigateToGenerate: () -> Unit = {}
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val listViewModel: StoryListViewModel = hiltViewModel()
+    val uiState by listViewModel.uiState.collectAsState()
+    val dateFormat = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
+    var selectedStory by remember { mutableStateOf<StoryEntity?>(null) }
+    var showGenerator by remember { mutableStateOf(false) }
+
+    // 生成器页面
+    if (showGenerator) {
+        StoryGeneratorView(onClose = { showGenerator = false })
+        return
+    }
+
+    if (selectedStory != null) {
+        StoryReadScreen(story = selectedStory!!, onBack = { selectedStory = null })
+        return
+    }
 
     Scaffold(
         containerColor = StarColors.Background,
         topBar = {
             TopAppBar(
-                title = { Text("AI 故事", color = StarColors.OnBackground) },
+                title = { Text("故事库", color = StarColors.OnBackground) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = StarColors.Surface)
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showGenerator = true },
+                containerColor = StarColors.Primary
+            ) {
+                Icon(Icons.Default.Add, "生成故事", tint = StarColors.OnPrimary)
+            }
         }
     ) { padding ->
-        // ── 已保存成功 ────────────────
-        if (uiState.savedStoryId != null) {
+        if (uiState.stories.isEmpty() && !uiState.isLoading) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("🎉", style = MaterialTheme.typography.displayMedium)
+                    Text("📖", style = MaterialTheme.typography.displayMedium)
                     Spacer(Modifier.height(12.dp))
-                    Text("故事已保存到星系！", style = MaterialTheme.typography.titleMedium, color = StarColors.OnBackground)
-                    Text("返回星系可以看到新的故事节点", style = MaterialTheme.typography.bodySmall, color = StarColors.OnSurface)
+                    Text("还没有故事", style = MaterialTheme.typography.titleMedium, color = StarColors.OnBackground)
+                    Text("用 AI 将灵感碎片编织成故事", style = MaterialTheme.typography.bodySmall, color = StarColors.OnSurface)
                     Spacer(Modifier.height(16.dp))
-                    OutlinedButton(onClick = { viewModel.reset() }) { Text("继续创作") }
-                }
-            }
-            return@Scaffold
-        }
-
-        // ── 流式生成中 ────────────────
-        if (uiState.isStreaming) {
-            StreamingView(
-                text = uiState.streamingTokens,
-                modifier = Modifier.padding(padding)
-            )
-            return@Scaffold
-        }
-
-        // ── 生成结果 ──────────────────
-        if (uiState.result != null) {
-            ResultView(
-                story = uiState.result!!,
-                onSave = { viewModel.saveStory() },
-                onRetry = { viewModel.generate() },
-                onBack = { viewModel.reset() }
-            )
-            return@Scaffold
-        }
-
-        // ── 碎片选择 + 生成按钮 ───────
-        SelectFragmentsView(
-            fragments = uiState.fragments,
-            selectedIds = uiState.selectedFragmentIds,
-            style = uiState.style,
-            length = uiState.length,
-            isGenerating = uiState.isGenerating,
-            canGenerate = uiState.canGenerate,
-            error = uiState.error,
-            onToggleFragment = { viewModel.toggleFragment(it) },
-            onSelectAll = { viewModel.selectAll() },
-            onClearSelection = { viewModel.clearSelection() },
-            onSetStyle = { viewModel.setStyle(it) },
-            onSetLength = { viewModel.setLength(it) },
-            onGenerate = { viewModel.generate() },
-            modifier = Modifier.padding(padding)
-        )
-    }
-}
-
-// ═══════════════════════════════════════════════════════
-
-@Composable
-private fun StreamingView(text: String, modifier: Modifier = Modifier) {
-    val listState = rememberLazyListState()
-    val lines = text.lines()
-
-    LaunchedEffect(text) {
-        if (lines.isNotEmpty()) listState.animateScrollToItem(lines.size - 1)
-    }
-
-    Column(modifier = modifier.padding(16.dp)) {
-        Text("✨ AI 正在创作...", style = MaterialTheme.typography.titleSmall, color = StarColors.Primary)
-        Spacer(Modifier.height(8.dp))
-        LinearProgressIndicator(
-            modifier = Modifier.fillMaxWidth(),
-            color = StarColors.Primary,
-            trackColor = StarColors.SurfaceVariant
-        )
-        Spacer(Modifier.height(12.dp))
-        LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
-            items(lines) { line ->
-                Text(
-                    text = line.ifBlank { "\u00A0" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = StarColors.OnSurface,
-                    modifier = Modifier.padding(vertical = 2.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ResultView(
-    story: com.startrace.core.database.entity.StoryEntity,
-    onSave: () -> Unit,
-    onRetry: () -> Unit,
-    onBack: () -> Unit
-) {
-    Column(modifier = Modifier.padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val styleLabel = when (story.style) { "scifi"->"🚀科幻" "fantasy"->"🧙奇幻" "realistic"->"📷现实" "prose"->"🌸散文" "poetry"->"🎵诗歌" "mystery"->"🔍悬疑" else->story.style }
-            Surface(color = StarColors.Primary.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) {
-                Text(styleLabel, Modifier.padding(horizontal = 8.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall, color = StarColors.Primary)
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        Text(story.title, style = MaterialTheme.typography.headlineSmall, color = StarColors.OnBackground, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(12.dp))
-        LazyColumn(Modifier.weight(1f)) {
-            item { Text(story.content, style = MaterialTheme.typography.bodyMedium, color = StarColors.OnSurface) }
-        }
-        Spacer(Modifier.height(12.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onBack, Modifier.weight(1f)) { Text("重选") }
-            OutlinedButton(onClick = onRetry, Modifier.weight(1f)) { Text("重新生成") }
-            Button(onClick = onSave, Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = StarColors.Primary)) {
-                Icon(Icons.Default.Save, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("保存")
-            }
-        }
-    }
-}
-
-@Composable
-private fun SelectFragmentsView(
-    fragments: List<com.startrace.core.database.entity.FragmentEntity>,
-    selectedIds: Set<String>, style: String, length: String,
-    isGenerating: Boolean, canGenerate: Boolean, error: String?,
-    onToggleFragment: (String) -> Unit, onSelectAll: () -> Unit, onClearSelection: () -> Unit,
-    onSetStyle: (String) -> Unit, onSetLength: (String) -> Unit, onGenerate: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    LazyColumn(modifier = modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text("故事风格", style = MaterialTheme.typography.titleSmall, color = StarColors.OnBackground); Spacer(Modifier.height(6.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("scifi" to "🚀科幻", "fantasy" to "🧙奇幻", "realistic" to "📷现实", "prose" to "🌸散文", "poetry" to "🎵诗歌", "mystery" to "🔍悬疑").forEach { (v, l) ->
-                    FilterChip(selected = style == v, onClick = { onSetStyle(v) }, label = { Text(l, style = MaterialTheme.typography.labelSmall) }, colors = chipColors(style == v))
-                }
-            }
-        }
-
-        item { Text("故事长度", style = MaterialTheme.typography.titleSmall, color = StarColors.OnBackground); Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("short" to "短篇", "medium" to "中篇", "long" to "长篇").forEach { (v, l) ->
-                    FilterChip(selected = length == v, onClick = { onSetLength(v) }, label = { Text(l, style = MaterialTheme.typography.labelSmall) }, colors = chipColors(length == v))
-                }
-            }
-        }
-
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("选择碎片 (${selectedIds.size})", style = MaterialTheme.typography.titleSmall, color = StarColors.OnBackground)
-                Row { TextButton(onClick = onSelectAll) { Text("全选", style = MaterialTheme.typography.labelSmall) }; TextButton(onClick = onClearSelection) { Text("清除", style = MaterialTheme.typography.labelSmall) } }
-            }
-        }
-
-        if (fragments.isEmpty()) {
-            item { Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) { Text("还没有碎片，先去星系记录灵感吧 ✨", style = MaterialTheme.typography.bodySmall, color = StarColors.OnSurface.copy(alpha = 0.5f)) } }
-        } else {
-            items(fragments, key = { it.id }) { frag ->
-                val sel = frag.id in selectedIds
-                val (emoji, label) = getDomainDisplay(frag.domainTag)
-                Card(onClick = { onToggleFragment(frag.id) }, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (sel) StarColors.Primary.copy(alpha = 0.15f) else StarColors.Surface), shape = RoundedCornerShape(10.dp)) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
-                        Checkbox(checked = sel, onCheckedChange = { onToggleFragment(frag.id) }, colors = CheckboxDefaults.colors(checkedColor = StarColors.Primary))
-                        Spacer(Modifier.width(8.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("$emoji $label", style = MaterialTheme.typography.labelSmall, color = StarColors.Primary)
-                            Spacer(Modifier.height(2.dp))
-                            Text(frag.content, style = MaterialTheme.typography.bodySmall, color = StarColors.OnSurface, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                        }
+                    Button(onClick = onNavigateToGenerate, colors = ButtonDefaults.buttonColors(containerColor = StarColors.Primary)) {
+                        Icon(Icons.Default.AutoAwesome, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("生成第一个故事")
                     }
                 }
             }
-        }
-
-        item {
-            Spacer(Modifier.height(8.dp))
-            Button(onClick = onGenerate, enabled = canGenerate, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = StarColors.Primary), shape = RoundedCornerShape(12.dp)) {
-                if (isGenerating) { CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = StarColors.OnPrimary); Spacer(Modifier.width(8.dp)); Text("准备中...", color = StarColors.OnPrimary) }
-                else { Icon(Icons.Default.AutoAwesome, null, tint = StarColors.OnPrimary); Spacer(Modifier.width(8.dp)); Text("生成故事 (${selectedIds.size} 碎片)", color = StarColors.OnPrimary) }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(uiState.stories, key = { it.id }) { story ->
+                    StoryCard(story = story, dateFormat = dateFormat, onClick = { selectedStory = story })
+                }
+                item { Spacer(Modifier.height(72.dp)) /* FAB 空间 */ }
             }
-            if (error != null) { Spacer(Modifier.height(8.dp)); Text(error, style = MaterialTheme.typography.bodySmall, color = StarColors.Error) }
         }
     }
 }
 
 @Composable
-private fun chipColors(selected: Boolean) = FilterChipDefaults.filterChipColors(
-    selectedContainerColor = StarColors.Primary.copy(alpha = 0.25f), selectedLabelColor = StarColors.Primary,
-    containerColor = StarColors.Surface, labelColor = StarColors.OnSurface.copy(alpha = 0.7f)
-)
+private fun StoryCard(story: StoryEntity, dateFormat: SimpleDateFormat, onClick: () -> Unit) {
+    val styleLabel = when (story.style) { "scifi"->"🚀" "fantasy"->"🧙" "realistic"->"📷" "prose"->"🌸" "poetry"->"🎵" "mystery"->"🔍" else->"📖" }
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = StarColors.Surface),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(styleLabel, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(story.title, style = MaterialTheme.typography.titleSmall, color = StarColors.OnBackground, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(4.dp))
+                    Text(story.content.take(80) + if (story.content.length > 80) "..." else "", style = MaterialTheme.typography.bodySmall, color = StarColors.OnSurface.copy(alpha = 0.7f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(dateFormat.format(Date(story.createdAt)), style = MaterialTheme.typography.labelSmall, color = StarColors.OnSurface.copy(alpha = 0.4f))
+                val lenLabel = when (story.length) { "short"->"短" "medium"->"中" "long"->"长" else->"" }
+                Surface(color = StarColors.Secondary.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp)) {
+                    Text(lenLabel, Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, color = StarColors.Secondary)
+                }
+            }
+        }
+    }
+}

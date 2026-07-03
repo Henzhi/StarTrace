@@ -1,0 +1,142 @@
+package com.startrace.feature.story.ui
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.startrace.design.theme.StarColors
+import com.startrace.feature.fragment.ui.component.getDomainDisplay
+import com.startrace.feature.story.viewmodel.StoryGeneratorViewModel
+
+/**
+ * 故事生成器 — 碎片选择 + 风格/长度 + SSE 流式生成
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StoryGeneratorView(
+    onClose: () -> Unit,
+    viewModel: StoryGeneratorViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsState()
+
+    Scaffold(
+        containerColor = StarColors.Background,
+        topBar = {
+            TopAppBar(
+                title = { Text("生成故事", color = StarColors.OnBackground) },
+                navigationIcon = {
+                    IconButton(onClick = onClose) { Icon(Icons.Default.ArrowBack, "返回", tint = StarColors.OnSurface) }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = StarColors.Surface)
+            )
+        }
+    ) { padding ->
+        if (uiState.savedStoryId != null) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("🎉", style = MaterialTheme.typography.displayMedium)
+                    Spacer(Modifier.height(12.dp))
+                    Text("故事已保存！", style = MaterialTheme.typography.titleMedium, color = StarColors.OnBackground)
+                    Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = StarColors.Primary)) { Text("回到故事库") }
+                }
+            }
+            return@Scaffold
+        }
+
+        if (uiState.isStreaming) {
+            StreamingView(text = uiState.streamingTokens, modifier = Modifier.padding(padding))
+            return@Scaffold
+        }
+
+        if (uiState.result != null) {
+            ResultView(story = uiState.result!!, onSave = { viewModel.saveStory() }, onRetry = { viewModel.generate() }, onBack = { viewModel.reset() })
+            return@Scaffold
+        }
+
+        // 碎片选择 + 风格/长度
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item { Text("故事风格", style = MaterialTheme.typography.titleSmall, color = StarColors.OnBackground); Spacer(Modifier.height(6.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("scifi" to "🚀科幻", "fantasy" to "🧙奇幻", "realistic" to "📷现实", "prose" to "🌸散文", "poetry" to "🎵诗歌", "mystery" to "🔍悬疑").forEach { (v, l) ->
+                        FilterChip(selected = uiState.style == v, onClick = { viewModel.setStyle(v) }, label = { Text(l, style = MaterialTheme.typography.labelSmall) }, colors = chipColors(uiState.style == v))
+                    }
+                }
+            }
+            item { Text("故事长度", style = MaterialTheme.typography.titleSmall, color = StarColors.OnBackground); Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("short" to "短篇", "medium" to "中篇", "long" to "长篇").forEach { (v, l) ->
+                        FilterChip(selected = uiState.length == v, onClick = { viewModel.setLength(v) }, label = { Text(l, style = MaterialTheme.typography.labelSmall) }, colors = chipColors(uiState.length == v))
+                    }
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("选择碎片 (${uiState.selectedCount})", style = MaterialTheme.typography.titleSmall, color = StarColors.OnBackground)
+                    Row { TextButton(onClick = { viewModel.selectAll() }) { Text("全选", style = MaterialTheme.typography.labelSmall) }; TextButton(onClick = { viewModel.clearSelection() }) { Text("清除", style = MaterialTheme.typography.labelSmall) } }
+                }
+            }
+            if (uiState.fragments.isEmpty()) {
+                item { Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) { Text("还没有碎片，先去星系记录灵感吧 ✨", style = MaterialTheme.typography.bodySmall, color = StarColors.OnSurface.copy(alpha = 0.5f)) } }
+            } else {
+                items(uiState.fragments, key = { it.id }) { frag ->
+                    val sel = frag.id in uiState.selectedFragmentIds
+                    val (emoji, label) = getDomainDisplay(frag.domainTag)
+                    Card(onClick = { viewModel.toggleFragment(frag.id) }, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (sel) StarColors.Primary.copy(alpha = 0.15f) else StarColors.Surface), shape = RoundedCornerShape(10.dp)) {
+                        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
+                            Checkbox(checked = sel, onCheckedChange = { viewModel.toggleFragment(frag.id) }, colors = CheckboxDefaults.colors(checkedColor = StarColors.Primary)); Spacer(Modifier.width(8.dp))
+                            Column(Modifier.weight(1f)) { Text("$emoji $label", style = MaterialTheme.typography.labelSmall, color = StarColors.Primary); Spacer(Modifier.height(2.dp)); Text(frag.content, style = MaterialTheme.typography.bodySmall, color = StarColors.OnSurface, maxLines = 3, overflow = TextOverflow.Ellipsis) }
+                        }
+                    }
+                }
+            }
+            item {
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = { viewModel.generate() }, enabled = uiState.canGenerate, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = StarColors.Primary), shape = RoundedCornerShape(12.dp)) {
+                    if (uiState.isGenerating) { CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = StarColors.OnPrimary); Spacer(Modifier.width(8.dp)); Text("准备中...", color = StarColors.OnPrimary) }
+                    else { Icon(Icons.Default.AutoAwesome, null, tint = StarColors.OnPrimary); Spacer(Modifier.width(8.dp)); Text("生成故事 (${uiState.selectedCount} 碎片)", color = StarColors.OnPrimary) }
+                }
+                if (uiState.error != null) { Spacer(Modifier.height(8.dp)); Text(uiState.error!!, style = MaterialTheme.typography.bodySmall, color = StarColors.Error) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StreamingView(text: String, modifier: Modifier = Modifier) {
+    val listState = rememberLazyListState(); val lines = text.lines()
+    LaunchedEffect(text) { if (lines.isNotEmpty()) listState.animateScrollToItem(lines.size - 1) }
+    Column(modifier.padding(16.dp)) {
+        Text("✨ AI 正在创作...", style = MaterialTheme.typography.titleSmall, color = StarColors.Primary); Spacer(Modifier.height(8.dp))
+        LinearProgressIndicator(Modifier.fillMaxWidth(), color = StarColors.Primary, trackColor = StarColors.SurfaceVariant); Spacer(Modifier.height(12.dp))
+        LazyColumn(state = listState, modifier = Modifier.weight(1f)) { items(lines) { line -> Text(line.ifBlank { "\u00A0" }, style = MaterialTheme.typography.bodyMedium, color = StarColors.OnSurface, modifier = Modifier.padding(vertical = 2.dp)) } }
+    }
+}
+
+@Composable
+private fun ResultView(story: com.startrace.core.database.entity.StoryEntity, onSave: () -> Unit, onRetry: () -> Unit, onBack: () -> Unit) {
+    Column(Modifier.padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = StarColors.Primary.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) { Text(story.style, Modifier.padding(horizontal = 8.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall, color = StarColors.Primary) }
+        }; Spacer(Modifier.height(12.dp))
+        Text(story.title, style = MaterialTheme.typography.headlineSmall, color = StarColors.OnBackground, fontWeight = FontWeight.Bold); Spacer(Modifier.height(12.dp))
+        LazyColumn(Modifier.weight(1f)) { item { Text(story.content, style = MaterialTheme.typography.bodyMedium, color = StarColors.OnSurface) } }; Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onBack, Modifier.weight(1f)) { Text("重选") }; OutlinedButton(onClick = onRetry, Modifier.weight(1f)) { Text("重新生成") }
+            Button(onClick = onSave, Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = StarColors.Primary)) { Icon(Icons.Default.Save, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("保存") }
+        }
+    }
+}
+
+@Composable
+private fun chipColors(selected: Boolean) = FilterChipDefaults.filterChipColors(selectedContainerColor = StarColors.Primary.copy(alpha = 0.25f), selectedLabelColor = StarColors.Primary, containerColor = StarColors.Surface, labelColor = StarColors.OnSurface.copy(alpha = 0.7f))
