@@ -3,7 +3,9 @@ package com.startrace.feature.galaxy.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.startrace.core.data.repository.FragmentRepository
+import com.startrace.core.database.dao.StoryDao
 import com.startrace.core.database.entity.FragmentEntity
+import com.startrace.core.database.entity.StoryEntity
 import com.startrace.core.engine.ForceConfig
 import com.startrace.core.engine.ForceDirectedEngine
 import com.startrace.core.engine.GraphNode
@@ -38,7 +40,8 @@ data class GalaxyUiState(
  */
 @HiltViewModel
 class GalaxyViewModel @Inject constructor(
-    private val fragmentRepository: FragmentRepository
+    private val fragmentRepository: FragmentRepository,
+    private val storyDao: StoryDao
 ) : ViewModel() {
 
     private val engine = ForceDirectedEngine(
@@ -75,38 +78,55 @@ class GalaxyViewModel @Inject constructor(
     // ── 初始化 ───────────────────────────────────────
     init {
         viewModelScope.launch {
-            fragmentRepository.observeAll().collect { fragments ->
-                runSimulation(fragments)
-            }
+            combine(
+                fragmentRepository.observeAll(),
+                storyDao.observeAll()
+            ) { fragments, stories -> fragments to stories }
+                .collect { (fragments, stories) ->
+                    runSimulation(fragments, stories)
+                }
         }
     }
 
     // ═══════════════════════════════════════════════════
-    private suspend fun runSimulation(fragments: List<FragmentEntity>) {
+    private suspend fun runSimulation(fragments: List<FragmentEntity>, stories: List<StoryEntity>) {
         _isSimulating.value = true
         _fragmentMap.value = fragments.associateBy { it.id }
         withContext(Dispatchers.Default) {
             engine.clear()
 
             // FragmentEntity → GraphNode
-            val graphNodes = fragments.map { f ->
-                GraphNode(
-                    id = f.id,
-                    label = f.content,
-                    mass = 1f,
-                    isFixed = false,
-                    domainTag = f.domainTag,
-                    formTag = f.formTag,
-                    storyId = null,  // 暂无故事关联
-                    nodeType = NodeType.FRAGMENT,
-                    x = f.positionX,
-                    y = f.positionY
-                )
+            val graphNodes = mutableListOf<GraphNode>()
+            fragments.forEach { f ->
+                graphNodes.add(GraphNode(
+                    id = f.id, label = f.content, mass = 1f, isFixed = false,
+                    domainTag = f.domainTag, formTag = f.formTag, storyId = null,
+                    nodeType = NodeType.FRAGMENT, x = f.positionX, y = f.positionY
+                ))
+            }
+
+            // StoryEntity → 固定锚点
+            stories.forEach { s ->
+                graphNodes.add(GraphNode(
+                    id = s.id, label = s.title, mass = 2f, isFixed = true,
+                    domainTag = "", formTag = null, storyId = s.id,
+                    nodeType = NodeType.STORY, x = s.positionX, y = s.positionY
+                ))
+                // 关联碎片归属
+                val linkedIds = try {
+                    org.json.JSONArray(s.fragmentIdsJson).let { arr ->
+                        (0 until arr.length()).map { arr.getString(it) }
+                    }
+                } catch (_: Exception) { emptyList() }
+                linkedIds.forEach { fid ->
+                    val idx = graphNodes.indexOfFirst { it.id == fid && it.nodeType == NodeType.FRAGMENT }
+                    if (idx >= 0) graphNodes[idx] = graphNodes[idx].copy(storyId = s.id)
+                }
             }
 
             if (graphNodes.isNotEmpty()) {
                 engine.addNodes(graphNodes)
-                engine.simulate(maxIterations = minOf(80, fragments.size * 10))
+                engine.simulate(maxIterations = minOf(100, graphNodes.size * 5))
                 _nodes.value = engine.snapshot()
             } else {
                 _nodes.value = emptyList()
