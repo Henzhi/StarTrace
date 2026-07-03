@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.startrace.core.database.entity.FragmentEntity
+import com.startrace.core.database.entity.StoryEntity
 import com.startrace.core.engine.NodeType
 import com.startrace.design.theme.StarColors
 import com.startrace.feature.fragment.ui.FragmentListScreen
@@ -57,8 +58,8 @@ fun GalaxyScreen(
         if (viewMode == ViewMode.CANVAS && galaxyViewModel != null) {
             val uiState by galaxyViewModel.uiState.collectAsState()
 
-            LaunchedEffect(uiState.selectedNodeId) {
-                showSheet = uiState.selectedNodeId != null
+            LaunchedEffect(uiState.selectedNodeId, uiState.draggingNodeId) {
+                showSheet = uiState.selectedNodeId != null && uiState.draggingNodeId == null
             }
 
             GalaxyCanvas(viewModel = galaxyViewModel, modifier = Modifier.fillMaxSize())
@@ -79,6 +80,7 @@ fun GalaxyScreen(
                 NodeDetailSheet(
                     node = uiState.selectedNode!!,
                     fragment = uiState.selectedFragment,
+                    linkedStories = uiState.linkedStories,
                     sheetState = sheetState,
                     onDismiss = {
                         scope.launch { sheetState.hide() }.invokeOnCompletion {
@@ -173,6 +175,7 @@ private fun BoxScope.CanvasBubble(onClick: () -> Unit) {
 private fun NodeDetailSheet(
     node: com.startrace.core.engine.GraphNode,
     fragment: FragmentEntity?,
+    linkedStories: List<StoryEntity>,
     sheetState: SheetState,
     onDismiss: () -> Unit
 ) {
@@ -215,6 +218,31 @@ private fun NodeDetailSheet(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(if (node.nodeType == NodeType.FRAGMENT) "灵感碎片" else "故事", style = MaterialTheme.typography.labelSmall, color = StarColors.OnSurface.copy(alpha = 0.5f))
                 Text(timeText, style = MaterialTheme.typography.labelSmall, color = StarColors.OnSurface.copy(alpha = 0.5f))
+            }
+
+            // 关联故事
+            if (linkedStories.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                Divider(color = StarColors.OnSurface.copy(alpha = 0.1f))
+                Spacer(Modifier.height(12.dp))
+                Text("关联故事 (${linkedStories.size})", style = MaterialTheme.typography.labelLarge, color = StarColors.Primary)
+                Spacer(Modifier.height(8.dp))
+                linkedStories.forEach { story ->
+                    Surface(
+                        color = StarColors.Primary.copy(alpha = 0.08f),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = story.title,
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = StarColors.OnSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
         }
     }

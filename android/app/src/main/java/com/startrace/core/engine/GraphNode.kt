@@ -11,7 +11,7 @@ package com.startrace.core.engine
  * @property isFixed 是否为固定节点（故事节点 true，碎片节点 false）
  * @property domainTag 领域标签（世界/人物/情节/对话/设定/哲思）
  * @property formTag 形态标签（场景/角色/台词/概念/冲突/转折）
- * @property storyId 关联的故事 ID（碎片归属时非空）
+ * @property storyIds 关联的故事 ID 集合（多对多，碎片节点可归属多个故事）
  * @property nodeType 节点类型（fragment / story）
  * @property x 当前 X 坐标
  * @property y 当前 Y 坐标
@@ -25,7 +25,7 @@ data class GraphNode(
     val isFixed: Boolean = false,
     val domainTag: String = "",
     val formTag: String? = null,
-    val storyId: String? = null,
+    val storyIds: Set<String> = emptySet(),
     val nodeType: NodeType = NodeType.FRAGMENT,
     var x: Float = 0f,
     var y: Float = 0f,

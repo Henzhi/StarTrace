@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.startrace.core.data.repository.FragmentRepository
 import com.startrace.core.data.repository.LLMConfigRepository
 import com.startrace.core.database.dao.StoryDao
+import com.startrace.core.database.dao.StoryFragmentRefDao
 import com.startrace.core.database.entity.FragmentEntity
 import com.startrace.core.database.entity.StoryEntity
+import com.startrace.core.database.entity.StoryFragmentRef
 import com.startrace.core.network.StoryGenerator
 import com.startrace.core.network.TokenEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -39,6 +41,7 @@ class StoryGeneratorViewModel @Inject constructor(
     private val fragmentRepository: FragmentRepository,
     private val llmConfigRepository: LLMConfigRepository,
     private val storyDao: StoryDao,
+    private val storyFragmentRefDao: StoryFragmentRefDao,
     private val storyGenerator: StoryGenerator
 ) : ViewModel() {
 
@@ -50,6 +53,7 @@ class StoryGeneratorViewModel @Inject constructor(
     private val _result = MutableStateFlow<StoryEntity?>(null)
     private val _error = MutableStateFlow<String?>(null)
     private val _savedId = MutableStateFlow<String?>(null)
+    private var _selectedFragmentIdsForSave: Set<String> = emptySet()
 
     @Suppress("UNCHECKED_CAST")
     val uiState: StateFlow<StoryGeneratorUiState> = combine(
@@ -98,7 +102,7 @@ class StoryGeneratorViewModel @Inject constructor(
                 if (selectedFragments.isEmpty()) throw IllegalStateException("未找到选中的碎片")
 
                 val fullContent = StringBuilder()
-                val fragmentIdsJson = JSONArray(selectedFragments.map { it.id }).toString()
+                val selectedFragmentIds = selectedFragments.map { it.id }
 
                 storyGenerator.generateStream(
                     config = config, fragments = selectedFragments,
@@ -116,7 +120,7 @@ class StoryGeneratorViewModel @Inject constructor(
                                     id = UUID.randomUUID().toString(),
                                     title = content.lines().firstOrNull { it.isNotBlank() }?.trim()?.take(50) ?: "未命名故事",
                                     content = content,
-                                    fragmentIdsJson = fragmentIdsJson,
+                                    fragmentIdsJson = JSONArray(selectedFragmentIds).toString(),
                                     length = _length.value,
                                     style = _style.value,
                                     positionX = (Math.random() * 400 - 200).toFloat(),
@@ -124,6 +128,8 @@ class StoryGeneratorViewModel @Inject constructor(
                                     llmConfigId = config.id,
                                     createdAt = System.currentTimeMillis()
                                 )
+                                // 暂存选中的碎片 ID，保存时写入 junction table
+                                _selectedFragmentIdsForSave = selectedFragmentIds.toSet()
                             }
                             _isGenerating.value = false
                         }
@@ -142,7 +148,13 @@ class StoryGeneratorViewModel @Inject constructor(
 
     fun saveStory() {
         val story = _result.value ?: return
-        viewModelScope.launch { storyDao.upsert(story); _savedId.value = story.id }
+        viewModelScope.launch {
+            storyDao.upsert(story)
+            // 写入多对多关联表
+            val refs = _selectedFragmentIdsForSave.map { fid -> StoryFragmentRef(storyId = story.id, fragmentId = fid) }
+            storyFragmentRefDao.insertAll(refs)
+            _savedId.value = story.id
+        }
     }
 
     fun reset() { _result.value = null; _error.value = null; _savedId.value = null; _streamingTokens.value = "" }

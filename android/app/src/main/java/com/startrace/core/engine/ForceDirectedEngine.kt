@@ -81,6 +81,15 @@ class ForceDirectedEngine(
         convergedAt = -1
     }
 
+    /** 用户手动移动节点（拖拽）。仅更新位置，不影响物理模拟状态。 */
+    fun moveNode(id: String, dx: Float, dy: Float) {
+        val idx = _nodes.indexOfFirst { it.id == id }
+        if (idx >= 0) {
+            val node = _nodes[idx]
+            _nodes[idx] = node.copy(x = node.x + dx, y = node.y + dy)
+        }
+    }
+
     // ── 模拟 ──────────────────────────────────────────
 
     /**
@@ -170,10 +179,11 @@ class ForceDirectedEngine(
                     config.formTagBonus * dist
                 } else 0f
 
-                // story 锚定加成
-                val storyBond = if (a.storyId != null && a.storyId == b.storyId) {
+                // story 锚定加成（多对多）
+                val sharedStories = a.storyIds.intersect(b.storyIds)
+                val storyBond = if (sharedStories.isNotEmpty()) {
                     config.storyBondStrength * dist
-                } else if (a.storyId == b.id || b.storyId == a.id) {
+                } else if (a.storyIds.contains(b.id) || b.storyIds.contains(a.id)) {
                     config.storyBondStrength * dist * 1.5f
                 } else 0f
 

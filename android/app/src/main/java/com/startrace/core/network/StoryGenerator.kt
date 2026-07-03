@@ -76,7 +76,7 @@ class StoryGenerator @Inject constructor(
             })
             put("temperature", 0.8)
             put("max_tokens", when (length) {
-                "short" -> 800; "medium" -> 2000; else -> 4000
+                "short" -> 3000; "medium" -> 8000; else -> 16000
             })
         }
 
@@ -128,9 +128,9 @@ class StoryGenerator @Inject constructor(
             else -> "创意写作"
         }
         val lengthDesc = when (length) {
-            "short" -> "500-800 字"
-            "medium" -> "1500-2000 字"
-            "long" -> "3000-4000 字"
+            "short" -> "800-1500 字"
+            "medium" -> "3000-5000 字"
+            "long" -> "6000-10000 字"
             else -> "适中的篇幅"
         }
         return "你是一个创意写作助手。请根据用户提供的灵感碎片，创作一段连贯的${styleDesc}故事。" +
@@ -187,7 +187,7 @@ class StoryGenerator @Inject constructor(
             })
             put("temperature", 0.8)
             put("max_tokens", when (length) {
-                "short" -> 800; "medium" -> 2000; else -> 4000
+                "short" -> 3000; "medium" -> 8000; else -> 16000
             })
             put("stream", true)
         }

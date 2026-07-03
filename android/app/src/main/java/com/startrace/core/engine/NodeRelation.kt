@@ -3,10 +3,10 @@ package com.startrace.core.engine
 /**
  * 节点关系计算器 — 计算两个节点之间的标签相似度和受力权重。
  *
- * 根据 domainTag / formTag / storyId 计算吸引力加成系数：
+ * 根据 domainTag / formTag / storyIds 计算吸引力加成系数：
  * - 同 domainTag → +1.0（强聚合）
  * - 同 formTag → +0.3（弱靠近）
- * - 同 storyId → +2.0（锚定到故事节点周围）
+ * - 共享 storyId → +2.0（锚定到故事节点周围）
  *
  * 纯函数，无副作用，线程安全。
  */
@@ -33,21 +33,22 @@ object NodeRelation {
             weight += 0.3f
         }
 
-        // 属于同一个故事 → 强锚定
-        if (a.storyId != null && b.storyId != null && a.storyId == b.storyId) {
+        // 共享故事 → 强锚定（多对多）
+        val sharedStories = a.storyIds.intersect(b.storyIds)
+        if (sharedStories.isNotEmpty()) {
             weight += 2.0f
         }
 
         // 碎片对其归属的故事节点产生额外引力
-        if (a.storyId != null && a.storyId == b.id && b.isFixed) {
+        if (a.storyIds.contains(b.id) && b.isFixed) {
             weight += 2.0f
         }
-        if (b.storyId != null && b.storyId == a.id && a.isFixed) {
+        if (b.storyIds.contains(a.id) && a.isFixed) {
             weight += 2.0f
         }
 
         // 不同类型节点之间有天然引力（故事和它的碎片走得更近）
-        if (a.nodeType != b.nodeType && (a.storyId == b.id || b.storyId == a.id)) {
+        if (a.nodeType != b.nodeType && (a.storyIds.contains(b.id) || b.storyIds.contains(a.id))) {
             weight += 1.5f
         }
 
@@ -60,6 +61,6 @@ object NodeRelation {
     fun sharesAnyTag(a: GraphNode, b: GraphNode): Boolean {
         return (a.domainTag.isNotBlank() && a.domainTag == b.domainTag) ||
                 (a.formTag != null && b.formTag != null && a.formTag == b.formTag) ||
-                (a.storyId != null && b.storyId != null && a.storyId == b.storyId)
+                a.storyIds.intersect(b.storyIds).isNotEmpty()
     }
 }

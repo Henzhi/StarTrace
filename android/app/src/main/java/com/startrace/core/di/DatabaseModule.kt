@@ -1,6 +1,7 @@
 package com.startrace.core.di
 
 import com.startrace.core.database.AppDatabase
+import com.startrace.core.database.MIGRATION_1_2
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -21,7 +22,8 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             "startrace.db"
-        ).build()
+        ).addMigrations(MIGRATION_1_2)
+         .build()
     }
 
     @Provides @Singleton
@@ -32,4 +34,7 @@ object DatabaseModule {
 
     @Provides @Singleton
     fun provideLLMConfigDao(db: AppDatabase) = db.llmConfigDao()
+
+    @Provides @Singleton
+    fun provideStoryFragmentRefDao(db: AppDatabase) = db.storyFragmentRefDao()
 }

@@ -2,6 +2,7 @@ package com.startrace.feature.story.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,7 +17,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.startrace.design.theme.StarColors
-import com.startrace.feature.fragment.ui.component.getDomainDisplay
+import com.startrace.feature.fragment.ui.component.DOMAIN_TAGS
 import com.startrace.feature.story.viewmodel.StoryGeneratorViewModel
 
 /**
@@ -29,6 +30,9 @@ fun StoryGeneratorView(
     viewModel: StoryGeneratorViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    // 每次进入生成器时重置状态，避免遗留上次的 savedStoryId
+    LaunchedEffect(Unit) { viewModel.reset() }
 
     Scaffold(
         containerColor = StarColors.Background,
@@ -67,8 +71,9 @@ fun StoryGeneratorView(
         // 碎片选择 + 风格/长度
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("故事风格", style = MaterialTheme.typography.titleSmall, color = StarColors.OnBackground); Spacer(Modifier.height(6.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("scifi" to "🚀科幻", "fantasy" to "🧙奇幻", "realistic" to "📷现实", "prose" to "🌸散文", "poetry" to "🎵诗歌", "mystery" to "🔍悬疑").forEach { (v, l) ->
+                val styles = listOf("scifi" to "🚀科幻", "fantasy" to "🧙奇幻", "realistic" to "📷现实", "prose" to "🌸散文", "poetry" to "🎵诗歌", "mystery" to "🔍悬疑")
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(styles) { (v, l) ->
                         FilterChip(selected = uiState.style == v, onClick = { viewModel.setStyle(v) }, label = { Text(l, style = MaterialTheme.typography.labelSmall) }, colors = chipColors(uiState.style == v))
                     }
                 }
@@ -91,7 +96,8 @@ fun StoryGeneratorView(
             } else {
                 items(uiState.fragments, key = { it.id }) { frag ->
                     val sel = frag.id in uiState.selectedFragmentIds
-                    val (emoji, label) = getDomainDisplay(frag.domainTag)
+                    val domain = DOMAIN_TAGS.find { it.key == frag.domainTag }
+                    val (emoji, label) = if (domain != null) Pair(domain.emoji, domain.label) else Pair("📌", frag.domainTag)
                     Card(onClick = { viewModel.toggleFragment(frag.id) }, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (sel) StarColors.Primary.copy(alpha = 0.15f) else StarColors.Surface), shape = RoundedCornerShape(10.dp)) {
                         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
                             Checkbox(checked = sel, onCheckedChange = { viewModel.toggleFragment(frag.id) }, colors = CheckboxDefaults.colors(checkedColor = StarColors.Primary)); Spacer(Modifier.width(8.dp))

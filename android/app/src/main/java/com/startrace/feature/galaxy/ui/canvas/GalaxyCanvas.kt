@@ -2,9 +2,11 @@ package com.startrace.feature.galaxy.ui.canvas
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -14,10 +16,12 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
 import com.startrace.core.engine.GraphNode
 import com.startrace.core.engine.NodeType
 import com.startrace.design.theme.StarColors
 import com.startrace.feature.galaxy.viewmodel.GalaxyViewModel
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * 星系画布 — 背景 + 连线 + 节点 LOD + 手势交互
@@ -46,6 +50,15 @@ fun GalaxyCanvas(
     val zoom = uiState.zoom
     val selectedId = uiState.selectedNodeId
     val highlightedTag = uiState.highlightedTag
+    val draggingNodeId = uiState.draggingNodeId
+    val viewConfig = LocalViewConfiguration.current
+    val doubleTapTimeout = viewConfig.doubleTapTimeoutMillis
+
+    // rememberUpdatedState 确保 pointerInput 始终读取最新值
+    val currentOffsetX by rememberUpdatedState(offsetX)
+    val currentOffsetY by rememberUpdatedState(offsetY)
+    val currentZoom by rememberUpdatedState(zoom)
+    val currentNodes by rememberUpdatedState(nodes)
 
     // 固定 seed 星点
     val starPositions = remember {
@@ -58,20 +71,99 @@ fun GalaxyCanvas(
     Canvas(
         modifier = modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
-                detectTransformGestures { centroid, pan, zoomChange, _ ->
-                    viewModel.updateViewport(pan.x / density, pan.y / density)
-                    if (zoomChange != 1f) viewModel.updateZoom(zoomChange, centroid.x / density, centroid.y / density)
+            // 视口平移 + 缩放（仅在未拖拽节点时生效）
+            // 使用 draggingNodeId 作为 key，拖拽开始/结束时自动切换
+            .pointerInput(draggingNodeId) {
+                if (draggingNodeId == null) {
+                    detectTransformGestures { centroid, pan, zoomChange, _ ->
+                        viewModel.updateViewport(pan.x / density, pan.y / density)
+                        if (zoomChange != 1f) viewModel.updateZoom(zoomChange, centroid.x / density, centroid.y / density)
+                    }
                 }
             }
-            .pointerInput(nodes.size) {
-                detectTapGestures { tap ->
-                    val ex = (tap.x - size.width / 2f) / (zoom * density) - offsetX
-                    val ey = (tap.y - size.height / 2f) / (zoom * density) - offsetY
-                    val hit = nodes.minByOrNull { val dx = it.x - ex; val dy = it.y - ey; dx * dx + dy * dy }
-                    if (hit != null) {
-                        val dx = hit.x - ex; val dy = hit.y - ey
-                        if (kotlin.math.sqrt(dx * dx + dy * dy) < 80f / zoom) viewModel.selectNode(hit.id) else viewModel.deselectNode()
+            // 双击选点 + 长按拖拽
+            .pointerInput(draggingNodeId) {
+                awaitEachGesture {
+                    // ── 第一次按下的分支 ──
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val downPos = down.position
+
+                    // 等待抬起或超时
+                    val up = withTimeoutOrNull(doubleTapTimeout) {
+                        waitForUpOrCancellation()
+                    }
+
+                    if (up != null) {
+                        // ✅ 手指抬起了 → 第一次点击完成
+                        // 等待第二次按下（双击判定）
+                        val down2 = withTimeoutOrNull(doubleTapTimeout) {
+                            awaitFirstDown(requireUnconsumed = false)
+                        }
+
+                        if (down2 != null) {
+                            // 第二次按下 — 检测是否命中节点
+                            val node = hitTestNode(
+                                down2.position.x, down2.position.y,
+                                size.width.toFloat(), size.height.toFloat(),
+                                density, currentZoom, currentOffsetX, currentOffsetY, currentNodes
+                            )
+                            if (node != null) {
+                                // ✅ 双击命中节点 → 开始拖拽
+                                viewModel.startDragging(node.id)
+                                down2.consume()
+                                // 追踪手指直到抬起
+                                var prevX = down2.position.x; var prevY = down2.position.y
+                                var dragging = true
+                                while (dragging) {
+                                    val ev = awaitPointerEvent()
+                                    val ch = ev.changes.firstOrNull { it.id == down2.id }
+                                    if (ch == null || !ch.pressed) dragging = false
+                                    else {
+                                        ch.consume()
+                                        val pos = ch.position
+                                        viewModel.dragNode((pos.x - prevX) / density / currentZoom, (pos.y - prevY) / density / currentZoom)
+                                        prevX = pos.x; prevY = pos.y
+                                    }
+                                }
+                                viewModel.endDragging()
+                            }
+                            return@awaitEachGesture
+                        }
+
+                        // 无第二次按下 → 单击选点
+                        val node = hitTestNode(
+                            downPos.x, downPos.y,
+                            size.width.toFloat(), size.height.toFloat(),
+                            density, currentZoom, currentOffsetX, currentOffsetY, currentNodes
+                        )
+                        if (node != null) viewModel.selectNode(node.id)
+                        else viewModel.deselectNode()
+                        return@awaitEachGesture
+                    }
+
+                    // 手指未在双击超时内抬起 → 长按
+                    // 检测是否命中节点 → 开始拖拽
+                    val node = hitTestNode(
+                        downPos.x, downPos.y,
+                        size.width.toFloat(), size.height.toFloat(),
+                        density, currentZoom, currentOffsetX, currentOffsetY, currentNodes
+                    )
+                    if (node != null) {
+                        viewModel.startDragging(node.id)
+                        var prevX = down.position.x; var prevY = down.position.y
+                        var dragging = true
+                        while (dragging) {
+                            val ev = awaitPointerEvent()
+                            val ch = ev.changes.firstOrNull { it.id == down.id }
+                            if (ch == null || !ch.pressed) dragging = false
+                            else {
+                                ch.consume()
+                                val pos = ch.position
+                                viewModel.dragNode((pos.x - prevX) / density / currentZoom, (pos.y - prevY) / density / currentZoom)
+                                prevX = pos.x; prevY = pos.y
+                            }
+                        }
+                        viewModel.endDragging()
                     }
                 }
             }
@@ -130,12 +222,28 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawConnectionLines
     nodes: List<GraphNode>, zoom: Float, density: Float, cw: Float, ch: Float, cx: Float, cy: Float, offsetX: Float, offsetY: Float
 ) {
     if (zoom < 0.6f || nodes.size < 2) return
-    val fragsByStory = nodes.filter { it.storyId != null && it.nodeType == NodeType.FRAGMENT }.groupBy { it.storyId!! }
-    val nodeMap = nodes.associateBy { it.id }
-    fragsByStory.forEach { (storyId, frags) ->
-        val story = nodeMap[storyId]
-        if (story != null && frags.size <= 6) frags.forEach { f -> drawBez(f, story, zoom, density, cx, cy, offsetX, offsetY, 2f) }
-        if (frags.size in 2..4) for (i in frags.indices) for (j in i + 1 until frags.size) drawBez(frags[i], frags[j], zoom, density, cx, cy, offsetX, offsetY, 1f)
+    // 多对多：遍历每个碎片的 storyIds，画出到所有关联故事节点的连线
+    val storyNodes = nodes.filter { it.nodeType == NodeType.STORY }.associateBy { it.id }
+    val fragmentNodes = nodes.filter { it.nodeType == NodeType.FRAGMENT && it.storyIds.isNotEmpty() }
+    val drawn = mutableSetOf<Pair<String, String>>()
+    fragmentNodes.filter { it.storyIds.size <= 8 }.forEach { frag ->
+        frag.storyIds.forEach { storyId ->
+            val story = storyNodes[storyId] ?: return@forEach
+            val key = if (frag.id < story.id) Pair(frag.id, story.id) else Pair(story.id, frag.id)
+            if (key !in drawn) {
+                drawn.add(key)
+                drawBez(frag, story, zoom, density, cx, cy, offsetX, offsetY, 2f)
+            }
+        }
+    }
+    // 同一故事的碎片间微妙连线
+    storyNodes.keys.forEach { sid ->
+        val sameStoryFrags = fragmentNodes.filter { sid in it.storyIds }
+        if (sameStoryFrags.size in 2..4) {
+            for (i in sameStoryFrags.indices) for (j in i + 1 until sameStoryFrags.size) {
+                drawBez(sameStoryFrags[i], sameStoryFrags[j], zoom, density, cx, cy, offsetX, offsetY, 1f)
+            }
+        }
     }
 }
 
@@ -150,4 +258,15 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBez(
     val path = androidx.compose.ui.graphics.Path().apply { moveTo(ax, ay); quadraticTo(cp.x, cp.y, bx, by) }
     val alpha = ((1f - (len / (1800f * zoom)).coerceIn(0f, 1f)) * 0.4f).coerceAtLeast(0.08f)
     drawPath(path, StarColors.NodeConnection.copy(alpha = alpha), style = Stroke(width * density))
+}
+
+/** 命中测试：将屏幕坐标转换为引擎坐标，找到最近的节点 */
+private fun hitTestNode(
+    tapX: Float, tapY: Float, canvasW: Float, canvasH: Float, density: Float,
+    zoom: Float, offsetX: Float, offsetY: Float, nodes: List<GraphNode>
+): GraphNode? {
+    val ex = (tapX - canvasW / 2f) / (zoom * density) - offsetX
+    val ey = (tapY - canvasH / 2f) / (zoom * density) - offsetY
+    val hit = nodes.minByOrNull { val dx = it.x - ex; val dy = it.y - ey; dx * dx + dy * dy }
+    return if (hit != null && kotlin.math.sqrt((hit.x - ex) * (hit.x - ex) + (hit.y - ey) * (hit.y - ey)) < 80f / zoom) hit else null
 }

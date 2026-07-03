@@ -198,8 +198,8 @@ class ForceDirectedEngineTest {
                 x = 200f, y = 200f
             )
             engine.addNode(story)
-            engine.addNode(GraphNode(id = "f1", storyId = "story1", x = 300f, y = 300f))
-            engine.addNode(GraphNode(id = "f2", storyId = "story1", x = 100f, y = 100f))
+            engine.addNode(GraphNode(id = "f1", storyIds = setOf("story1"), x = 300f, y = 300f))
+            engine.addNode(GraphNode(id = "f2", storyIds = setOf("story1"), x = 100f, y = 100f))
 
             engine.simulate(50)
 
@@ -228,12 +228,12 @@ class ForceDirectedEngineTest {
             )
             engine.addNode(story)
             val storyFrags = listOf(
-                GraphNode(id = "sa1", storyId = "story_a", x = -200f, y = 0f),
-                GraphNode(id = "sa2", storyId = "story_a", x = 200f, y = 0f)
+                GraphNode(id = "sa1", storyIds = setOf("story_a"), x = -200f, y = 0f),
+                GraphNode(id = "sa2", storyIds = setOf("story_a"), x = 200f, y = 0f)
             )
             val freeFrags = listOf(
-                GraphNode(id = "fb1", storyId = null, x = 0f, y = -200f),
-                GraphNode(id = "fb2", storyId = null, x = 0f, y = 200f)
+                GraphNode(id = "fb1", storyIds = emptySet(), x = 0f, y = -200f),
+                GraphNode(id = "fb2", storyIds = emptySet(), x = 0f, y = 200f)
             )
             storyFrags.forEach { engine.addNode(it) }
             freeFrags.forEach { engine.addNode(it) }
