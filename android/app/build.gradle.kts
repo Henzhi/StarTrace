@@ -110,9 +110,16 @@ dependencies {
     implementation("com.jakewharton.timber:timber:5.0.1")
 
     // Testing
+    testImplementation("junit:junit:4.13.2")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.3")
     testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.11.3")
+    testImplementation("androidx.test:core:1.6.1")
     testImplementation("io.mockk:mockk:1.13.13")
+
+    // 同时支持 JUnit4 和 JUnit5 测试
+    tasks.withType<Test> {
+        useJUnitPlatform()
+    }
     testImplementation("app.cash.turbine:turbine:1.2.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation("org.robolectric:robolectric:4.13")
