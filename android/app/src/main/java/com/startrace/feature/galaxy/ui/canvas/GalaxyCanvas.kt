@@ -7,13 +7,10 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -23,12 +20,12 @@ import com.startrace.design.theme.StarColors
 import com.startrace.feature.galaxy.viewmodel.GalaxyViewModel
 
 /**
- * 星系画布 — 深空背景 + 连线 + 节点渲染 + 手势交互
+ * 星系画布 — 背景 + 连线 + 节点 LOD + 手势交互
  *
  * 性能优化：
- * - 视口裁剪：只渲染屏幕 ±60px 内的节点
- * - 三级 LOD：zoom<0.5→微点 0.5-2→正常 >2→显示标题
- * - drawWithCache：背景渐变+星点缓存，不随手势重绘
+ * - 视口裁剪：跳过屏幕外节点
+ * - 三级 LOD：MICRO (zoom<0.5) / NORMAL / DETAIL (>2, 显示标题)
+ * - 背景星点：固定 seed，remember 避免重组闪烁
  */
 @Composable
 fun GalaxyCanvas(
@@ -50,155 +47,87 @@ fun GalaxyCanvas(
     val selectedId = uiState.selectedNodeId
     val highlightedTag = uiState.highlightedTag
 
-    // ── 背景缓存：drawWithCache ─────────────────
-    val bgModifier = Modifier
-        .fillMaxSize()
-        .drawWithCache {
-            val cw = size.width; val ch = size.height
-            val cx = cw / 2f; val cy = ch / 2f
-            val maxR = maxOf(cw, ch) * 1.2f
-
-            // 固定 seed 星点
-            val stars = List(80) { i ->
-                val rng = kotlin.random.Random(i * 73 + 42L)
-                arrayOf(rng.nextFloat(), rng.nextFloat(), rng.nextFloat() * 2f + 0.5f, rng.nextFloat() * 0.5f + 0.15f)
-            }
-
-            onDrawWithContent {
-                // 深空渐变
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        listOf(Color(0xFF1A1A3E), Color(0xFF0D0D1A), Color(0xFF0A0A0F)),
-                        Offset(cx, cy), maxR
-                    ), radius = maxR, center = Offset(cx, cy)
-                )
-                // 星点
-                stars.forEach { s ->
-                    drawCircle(Color.White.copy(alpha = s[3]), s[2], Offset(s[0] * cw, s[1] * ch))
-                }
-            }
+    // 固定 seed 星点
+    val starPositions = remember {
+        List(80) { i ->
+            val rng = kotlin.random.Random(i * 73 + 42L)
+            arrayOf(rng.nextFloat(), rng.nextFloat(), rng.nextFloat() * 2f + 0.5f, rng.nextFloat() * 0.5f + 0.15f)
         }
-        .pointerInput(Unit) {
-            detectTransformGestures { centroid, pan, zoomChange, _ ->
-                viewModel.updateViewport(pan.x / density, pan.y / density)
-                if (zoomChange != 1f) {
-                    viewModel.updateZoom(zoomChange, centroid.x / density, centroid.y / density)
-                }
-            }
-        }
-        .pointerInput(nodes.size) {
-            detectTapGestures { tap ->
-                val engineX = (tap.x - size.width / 2f) / (zoom * density) - offsetX
-                val engineY = (tap.y - size.height / 2f) / (zoom * density) - offsetY
-                val hit = nodes.minByOrNull {
-                    val dx = it.x - engineX; val dy = it.y - engineY
-                    dx * dx + dy * dy
-                }
-                if (hit != null) {
-                    val dx = hit.x - engineX; val dy = hit.y - engineY
-                    val dist = kotlin.math.sqrt(dx * dx + dy * dy)
-                    if (dist < 80f / zoom) viewModel.selectNode(hit.id) else viewModel.deselectNode()
-                }
-            }
-        }
+    }
 
-    // ── 前景 Canvas（连线和节点） ───────────────
-    Canvas(modifier = modifier.then(bgModifier)) {
+    Canvas(
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTransformGestures { centroid, pan, zoomChange, _ ->
+                    viewModel.updateViewport(pan.x / density, pan.y / density)
+                    if (zoomChange != 1f) viewModel.updateZoom(zoomChange, centroid.x / density, centroid.y / density)
+                }
+            }
+            .pointerInput(nodes.size) {
+                detectTapGestures { tap ->
+                    val ex = (tap.x - size.width / 2f) / (zoom * density) - offsetX
+                    val ey = (tap.y - size.height / 2f) / (zoom * density) - offsetY
+                    val hit = nodes.minByOrNull { val dx = it.x - ex; val dy = it.y - ey; dx * dx + dy * dy }
+                    if (hit != null) {
+                        val dx = hit.x - ex; val dy = hit.y - ey
+                        if (kotlin.math.sqrt(dx * dx + dy * dy) < 80f / zoom) viewModel.selectNode(hit.id) else viewModel.deselectNode()
+                    }
+                }
+            }
+    ) {
         val cw = size.width; val ch = size.height
         val cx = cw / 2f; val cy = ch / 2f
         val d = density; val z = zoom
+        val maxR = maxOf(cw, ch) * 1.2f
 
-        // 连线
+        // 1. 深空渐变背景
+        drawCircle(Brush.radialGradient(listOf(Color(0xFF1A1A3E), Color(0xFF0D0D1A), Color(0xFF0A0A0F)), Offset(cx, cy), maxR), maxR, Offset(cx, cy))
+
+        // 2. 星点
+        starPositions.forEach { s -> drawCircle(Color.White.copy(alpha = s[3]), s[2], Offset(s[0] * cw, s[1] * ch)) }
+
+        // 3. 连线
         drawConnectionLines(nodes, z, d, cw, ch, cx, cy, offsetX, offsetY)
 
-        // 节点 + LOD
+        // 4. 节点 + LOD + 视口裁剪
         nodes.forEach { node ->
             val sx = (node.x + offsetX) * z * d + cx
             val sy = (node.y + offsetY) * z * d + cy
-
-            // ══ 视口裁剪 ════════════════════════
             if (sx < -60 || sx > cw + 60 || sy < -60 || sy > ch + 60) return@forEach
 
             val isSelected = node.id == selectedId
             val isDimmed = highlightedTag != null && node.domainTag != highlightedTag
             val alpha = if (isDimmed) 0.12f else 1f
 
-            // ══ 三级 LOD ════════════════════════
-            val lod = when {
-                z < 0.5f -> LOD.MICRO
-                z > 2f -> LOD.DETAIL
-                else -> LOD.NORMAL
-            }
-
             val baseR = when (node.nodeType) {
-                NodeType.STORY -> 12f * d * z
-                NodeType.FRAGMENT -> 6f * d * z
+                NodeType.STORY -> 12f * d * z; NodeType.FRAGMENT -> 6f * d * z
             }.coerceIn(2f, 36f)
 
             val clr = when (node.nodeType) {
-                NodeType.STORY -> StarColors.NodeStory
-                NodeType.FRAGMENT -> StarColors.NodeFragment
+                NodeType.STORY -> StarColors.NodeStory; NodeType.FRAGMENT -> StarColors.NodeFragment
             }
 
-            when (lod) {
-                LOD.MICRO -> {
-                    // 仅绘制简化小圆点
-                    drawCircle(clr.copy(alpha = alpha), baseR.coerceAtMost(3f), Offset(sx, sy))
+            when {
+                z < 0.5f -> drawCircle(clr.copy(alpha = alpha), baseR.coerceAtMost(3f), Offset(sx, sy))
+                z > 2f -> {
+                    drawCircle(Brush.radialGradient(listOf(clr.copy(alpha = 0.25f * alpha), Color.Transparent), Offset(sx, sy), 16f * d * z), 16f * d * z, Offset(sx, sy))
+                    drawCircle(clr.copy(alpha = alpha), baseR, Offset(sx, sy))
+                    drawContext.canvas.nativeCanvas.drawText(node.label.take(12), sx, sy - baseR - 6f * d,
+                        android.graphics.Paint().apply { color = android.graphics.Color.argb((alpha * 255).toInt(), 224, 224, 224); textSize = 10f * d; textAlign = android.graphics.Paint.Align.CENTER; isAntiAlias = true })
                 }
-                LOD.NORMAL -> {
-                    drawNodeNormal(sx, sy, baseR, clr, alpha, d, z, isSelected, pulse)
-                }
-                LOD.DETAIL -> {
-                    drawNodeNormal(sx, sy, baseR, clr, alpha, d, z, isSelected, pulse)
-                    // 显示标签文字
-                    val label = node.label.take(12)
-                    val paint = android.graphics.Paint().apply {
-                        color = android.graphics.Color.argb((alpha * 255).toInt(), 224, 224, 224)
-                        textSize = 10f * d
-                        textAlign = android.graphics.Paint.Align.CENTER
-                        isAntiAlias = true
-                    }
-                    drawContext.canvas.nativeCanvas.drawText(
-                        label, sx, sy - baseR - 6f * d, paint
-                    )
+                else -> {
+                    drawCircle(Brush.radialGradient(listOf(clr.copy(alpha = 0.25f * alpha), Color.Transparent), Offset(sx, sy), 16f * d * z), 16f * d * z, Offset(sx, sy))
+                    drawCircle(clr.copy(alpha = alpha), baseR, Offset(sx, sy))
+                    if (isSelected) drawCircle(Color.White.copy(alpha = 0.25f + pulse * 0.45f), baseR + 5f * d + pulse * 4f * d, Offset(sx, sy), style = Stroke(1.5f * d))
                 }
             }
         }
     }
 }
 
-/** LOD 级别 */
-private enum class LOD { MICRO, NORMAL, DETAIL }
-
-/** 正常渲染：光晕 + 主体 + 可选选中环 */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawNodeNormal(
-    sx: Float, sy: Float, r: Float, clr: Color, alpha: Float,
-    d: Float, z: Float, isSelected: Boolean, pulse: Float
-) {
-    drawCircle(
-        brush = Brush.radialGradient(
-            listOf(clr.copy(alpha = 0.25f * alpha), Color.Transparent),
-            Offset(sx, sy), 16f * d * z
-        ), radius = 16f * d * z, center = Offset(sx, sy)
-    )
-    drawCircle(clr.copy(alpha = alpha), r, Offset(sx, sy))
-    if (isSelected) {
-        drawCircle(
-            Color.White.copy(alpha = 0.25f + pulse * 0.45f),
-            r + 5f * d + pulse * 4f * d, Offset(sx, sy),
-            style = Stroke(1.5f * d)
-        )
-    }
-}
-
-// ═══════════════════════════════════════════════
-// 连线绘制（同前，不变）
-// ═══════════════════════════════════════════════
-
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawConnectionLines(
-    nodes: List<GraphNode>, zoom: Float, density: Float,
-    cw: Float, ch: Float, cx: Float, cy: Float,
-    offsetX: Float, offsetY: Float
+    nodes: List<GraphNode>, zoom: Float, density: Float, cw: Float, ch: Float, cx: Float, cy: Float, offsetX: Float, offsetY: Float
 ) {
     if (zoom < 0.6f || nodes.size < 2) return
     val fragsByStory = nodes.filter { it.storyId != null && it.nodeType == NodeType.FRAGMENT }.groupBy { it.storyId!! }
@@ -211,8 +140,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawConnectionLines
 }
 
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBez(
-    a: GraphNode, b: GraphNode, zoom: Float, density: Float,
-    cx: Float, cy: Float, offsetX: Float, offsetY: Float, width: Float
+    a: GraphNode, b: GraphNode, zoom: Float, density: Float, cx: Float, cy: Float, offsetX: Float, offsetY: Float, width: Float
 ) {
     val ax = (a.x + offsetX) * zoom * density + cx; val ay = (a.y + offsetY) * zoom * density + cy
     val bx = (b.x + offsetX) * zoom * density + cx; val by = (b.y + offsetY) * zoom * density + cy
