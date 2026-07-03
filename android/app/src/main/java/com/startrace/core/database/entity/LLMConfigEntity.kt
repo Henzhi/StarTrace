@@ -1,5 +1,6 @@
 package com.startrace.core.database.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -15,6 +16,10 @@ data class LLMConfigEntity(
     val name: String,
     val apiUrl: String,
     val modelName: String,
+
+    @ColumnInfo(name = "is_default")
     val isDefault: Boolean = false,
+
+    @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis()
 )

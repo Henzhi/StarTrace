@@ -24,6 +24,7 @@ app/build/
 captures/
 .externalNativeBuild/
 .cxx/
+.kotlin/
 
 # ===== Java =====
 *.class

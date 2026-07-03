@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 主星  -->
+    <path
+        android:fillColor="#FFE8A0"
+        android:pathData="M54,28L56.8,42.5L59.6,28L62.3,42.5L65.2,28L67.9,42.5L70.7,28L73.5,42.5L76.3,28L79,42.5L80,54L79,65.5L76.3,80L73.5,65.5L70.7,80L67.9,65.5L65.2,80L62.3,65.5L59.6,80L56.8,65.5L54,80L51.2,65.5L48.4,80L45.7,65.5L42.9,80L40.1,65.5L37.4,80L34.6,65.5L31.8,80L29,65.5L28,54L29,42.5L31.8,28L34.6,42.5L37.4,28L40.1,42.5L42.9,28L45.7,42.5L48.4,28L51.2,42.5Z" />
+
+    <!-- 顶部星芒 -->
+    <path
+        android:fillColor="#FFE8A0"
+        android:fillAlpha="0.6"
+        android:pathData="M54,22L54,28L52.5,26.5L55.5,26.5Z" />
+
+    <!-- 右侧星芒 -->
+    <path
+        android:fillColor="#FFE8A0"
+        android:fillAlpha="0.6"
+        android:pathData="M80,54L74,54L75.5,52.5L75.5,55.5Z" />
+
+    <!-- 底部星芒 -->
+    <path
+        android:fillColor="#FFE8A0"
+        android:fillAlpha="0.6"
+        android:pathData="M54,80L54,86L52.5,81.5L55.5,81.5Z" />
+
+    <!-- 左侧星芒 -->
+    <path
+        android:fillColor="#FFE8A0"
+        android:fillAlpha="0.6"
+        android:pathData="M28,54L34,54L32.5,52.5L32.5,55.5Z" />
+
+    <!-- 小星装饰 -->
+    <path
+        android:fillColor="#FFE8A0"
+        android:fillAlpha="0.3"
+        android:pathData="M22,30m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+    <path
+        android:fillColor="#FFE8A0"
+        android:fillAlpha="0.2"
+        android:pathData="M30,76m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+    <path
+        android:fillColor="#FFE8A0"
+        android:fillAlpha="0.15"
+        android:pathData="M78,72m-2.5,0a2.5,2.5 0,1 1,5 0a2.5,2.5 0,1 1,-5 0" />
+</vector>

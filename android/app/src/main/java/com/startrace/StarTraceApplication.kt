@@ -1,6 +1,8 @@
 package com.startrace
 
 import android.app.Application
+import com.google.firebase.BuildConfig
+import com.startrace.core.util.CrashlyticsTree
 import dagger.hilt.android.HiltAndroidApp
 import timber.log.Timber
 
