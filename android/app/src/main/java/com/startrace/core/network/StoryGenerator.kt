@@ -5,6 +5,9 @@ import com.startrace.core.database.entity.LLMConfigEntity
 import com.startrace.core.database.entity.StoryEntity
 import com.startrace.core.security.KeyStoreManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -153,6 +156,73 @@ class StoryGenerator @Inject constructor(
         // 取第一句（最多 20 字）
         return content.take(20).trim() + if (content.length > 20) "..." else ""
     }
+
+    /**
+     * 流式生成故事 — 通过 Server-Sent Events 逐 token 返回。
+     *
+     * @return Flow<TokenEvent> — Token/Complete/Error 事件序列
+     */
+    fun generateStream(
+        config: LLMConfigEntity,
+        fragments: List<FragmentEntity>,
+        style: String,
+        length: String
+    ): Flow<TokenEvent> = flow {
+        val apiKey = keyStore.decrypt(config.id)
+            ?: throw IllegalStateException("API Key 未配置")
+
+        val body = JSONObject().apply {
+            put("model", config.modelName)
+            put("messages", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "system")
+                    put("content", buildSystemPrompt(style, length))
+                })
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", buildUserPrompt(fragments))
+                })
+            })
+            put("temperature", 0.8)
+            put("max_tokens", when (length) {
+                "short" -> 800; "medium" -> 2000; else -> 4000
+            })
+            put("stream", true)
+        }
+
+        val request = Request.Builder()
+            .url(config.apiUrl.trimEnd('/') + "/v1/chat/completions")
+            .addHeader("Authorization", "Bearer $apiKey")
+            .addHeader("Content-Type", "application/json")
+            .post(body.toString().toRequestBody(jsonMediaType))
+            .build()
+
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) {
+            val errBody = response.body?.string() ?: "未知错误"
+            emit(TokenEvent.Error("HTTP ${response.code}: $errBody"))
+            return@flow
+        }
+
+        val reader = response.body?.byteStream()?.bufferedReader() ?: run {
+            emit(TokenEvent.Error("空响应流"))
+            return@flow
+        }
+
+        reader.use { r ->
+            var line: String?
+            while (r.readLine().also { line = it } != null) {
+                val event = SSEMessageParser.parseLine(line!!)
+                when (event) {
+                    is TokenEvent.Token -> emit(event)
+                    is TokenEvent.Complete -> { emit(event); return@flow }
+                    is TokenEvent.Error -> { emit(event); return@flow }
+                    null -> { /* skip empty/non-content lines */ }
+                }
+            }
+        }
+        emit(TokenEvent.Complete)
+    }.flowOn(Dispatchers.IO)
 
     private fun domainEmoji(tag: String): String = when (tag) {
         "world" -> "🌍"
