@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">星迹</string>
+    <string name="tab_galaxy">星系</string>
+    <string name="tab_record">记录</string>
+    <string name="tab_story">故事</string>
+    <string name="tab_profile">我的</string>
+    <string name="empty_galaxy">还没有灵感碎片\n快记录第一个吧</string>
+</resources>
