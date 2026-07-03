@@ -1,0 +1,26 @@
+# Test profile — 使用 Testcontainers 自动提供 PostgreSQL + Redis
+spring:
+  config:
+    activate:
+      on-profile: test
+
+  datasource:
+    url: jdbc:tc:postgresql:16-alpine:///startrace_test
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+    username: test
+    password: test
+
+  flyway:
+    enabled: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+sa-token:
+  jwt-secret-key: test-jwt-secret-key-for-unit-tests-only-min-32
+
+logging:
+  level:
+    com.startrace: DEBUG

@@ -1,0 +1,17 @@
+# 开发环境覆盖
+# 使用: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+services:
+  app:
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+    ports:
+      - "8080:8080"          # 开发时允许外部访问
+
+  postgres:
+    ports:
+      - "5432:5432"          # 开发时允许 IDE 直接连接数据库
+
+  redis:
+    ports:
+      - "6379:6379"          # 开发时允许 Redis GUI 工具连接

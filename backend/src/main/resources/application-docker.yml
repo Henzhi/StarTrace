@@ -1,0 +1,23 @@
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+  datasource:
+    url: jdbc:postgresql://postgres:5432/${POSTGRES_DB:startrace}
+    username: ${POSTGRES_USER:startrace}
+    password: ${POSTGRES_PASSWORD}
+
+  data:
+    redis:
+      host: redis
+      password: ${REDIS_PASSWORD}
+
+sa-token:
+  jwt-secret-key: ${JWT_SECRET}
+
+logging:
+  level:
+    com.startrace: INFO
+    org.springframework.web: WARN
+    org.flywaydb: WARN
