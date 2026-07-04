@@ -44,6 +44,8 @@ fun FragmentListScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showArchiveDialog by remember { mutableStateOf(false) }
     var swipeTarget by remember { mutableStateOf<FragmentEntity?>(null) }
+    var showSwipeDeleteDialog by remember { mutableStateOf(false) }
+    var pendingSwipeFragment by remember { mutableStateOf<FragmentEntity?>(null) }
 
     // ── 监听 Snackbar 事件 ──────────────────────────────
     LaunchedEffect(Unit) {
@@ -139,7 +141,9 @@ fun FragmentListScreen(
                             confirmValueChange = { dismissValue ->
                                 if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
                                     swipeTarget = fragment
-                                    true
+                                    pendingSwipeFragment = fragment
+                                    showSwipeDeleteDialog = true
+                                    false  // 不自动消除，弹出确认弹窗
                                 } else false
                             }
                         )
@@ -201,17 +205,9 @@ fun FragmentListScreen(
                                 modifier = Modifier.animateItem()
                             )
                         }
-
-                        // ── 滑动删除执行 ────────────
-                        LaunchedEffect(dismissState.currentValue) {
-                            if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
-                                swipeTarget?.let { viewModel.swipeDelete(it) }
-                                swipeTarget = null
-                            }
-                        }
-                    }
                 }
             }
+        }
         }
 
         // ══ Snackbar ══════════════════════════════
@@ -276,6 +272,44 @@ fun FragmentListScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showArchiveDialog = false }) { Text("取消") }
+            },
+            containerColor = StarColors.Surface,
+            titleContentColor = StarColors.OnBackground,
+            textContentColor = StarColors.OnSurface
+        )
+    }
+
+    // ══ 滑动删除确认弹窗 ═══════════════════════════
+    if (showSwipeDeleteDialog && pendingSwipeFragment != null) {
+        val preview = pendingSwipeFragment!!.content.let {
+            if (it.length > 40) it.take(40) + "..." else it
+        }
+        AlertDialog(
+            onDismissRequest = {
+                showSwipeDeleteDialog = false
+                pendingSwipeFragment = null
+                swipeTarget = null
+            },
+            title = { Text("确认删除") },
+            text = { Text("将删除这条灵感碎片：「$preview」\n此操作不可撤销。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val fragment = pendingSwipeFragment
+                        showSwipeDeleteDialog = false
+                        pendingSwipeFragment = null
+                        swipeTarget = null
+                        fragment?.let { viewModel.swipeDelete(it) }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = StarColors.Error)
+                ) { Text("删除") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showSwipeDeleteDialog = false
+                    pendingSwipeFragment = null
+                    swipeTarget = null
+                }) { Text("取消") }
             },
             containerColor = StarColors.Surface,
             titleContentColor = StarColors.OnBackground,
