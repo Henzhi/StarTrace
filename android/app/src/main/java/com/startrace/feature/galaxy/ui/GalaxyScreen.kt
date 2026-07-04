@@ -1,5 +1,6 @@
 package com.startrace.feature.galaxy.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,6 +30,7 @@ import com.startrace.feature.fragment.ui.FragmentListScreen
 import com.startrace.feature.fragment.ui.component.getDomainDisplay
 import com.startrace.feature.galaxy.ui.canvas.GalaxyCanvas
 import com.startrace.feature.galaxy.viewmodel.GalaxyViewModel
+import com.startrace.feature.story.ui.StoryReadScreen
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -45,9 +47,19 @@ fun GalaxyScreen(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showSheet by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    var selectedReadStory by remember { mutableStateOf<StoryEntity?>(null) }
 
     val galaxyViewModel: GalaxyViewModel? =
         if (viewMode == ViewMode.CANVAS) hiltViewModel() else null
+
+    // ── 系统返回键：子页面内拦截，回到上一页而非跳回星系 ──
+    BackHandler(enabled = selectedReadStory != null) { selectedReadStory = null }
+
+    // ── 故事阅读覆盖层 ─────────────────────────────
+    if (selectedReadStory != null) {
+        StoryReadScreen(story = selectedReadStory!!, onBack = { selectedReadStory = null })
+        return
+    }
 
     Box(
         modifier = Modifier
@@ -85,6 +97,12 @@ fun GalaxyScreen(
                     onDismiss = {
                         scope.launch { sheetState.hide() }.invokeOnCompletion {
                             showSheet = false; galaxyViewModel.deselectNode()
+                        }
+                    },
+                    onReadStory = { story ->
+                        scope.launch { sheetState.hide() }.invokeOnCompletion {
+                            showSheet = false; galaxyViewModel.deselectNode()
+                            selectedReadStory = story
                         }
                     }
                 )
@@ -177,7 +195,8 @@ private fun NodeDetailSheet(
     fragment: FragmentEntity?,
     linkedStories: List<StoryEntity>,
     sheetState: SheetState,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onReadStory: (StoryEntity) -> Unit
 ) {
     val (emoji, domainLabel) = getDomainDisplay(node.domainTag)
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
@@ -225,22 +244,37 @@ private fun NodeDetailSheet(
                 Spacer(Modifier.height(16.dp))
                 HorizontalDivider(color = StarColors.OnSurface.copy(alpha = 0.1f))
                 Spacer(Modifier.height(12.dp))
-                Text("关联故事 (${linkedStories.size})", style = MaterialTheme.typography.labelLarge, color = StarColors.Primary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("关联故事 (${linkedStories.size})", style = MaterialTheme.typography.labelLarge, color = StarColors.Primary)
+                    Spacer(Modifier.weight(1f))
+                    Text("点击阅读 →", style = MaterialTheme.typography.labelSmall, color = StarColors.Primary.copy(alpha = 0.6f))
+                }
                 Spacer(Modifier.height(8.dp))
                 linkedStories.forEach { story ->
                     Surface(
                         color = StarColors.Primary.copy(alpha = 0.08f),
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp)
+                            .clickable { onReadStory(story) }
                     ) {
-                        Text(
-                            text = story.title,
+                        Row(
                             modifier = Modifier.padding(12.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = StarColors.OnSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("📖", style = MaterialTheme.typography.bodySmall)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = story.title,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = StarColors.OnSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text("→", style = MaterialTheme.typography.labelSmall, color = StarColors.Primary.copy(alpha = 0.5f))
+                        }
                     }
                 }
             }

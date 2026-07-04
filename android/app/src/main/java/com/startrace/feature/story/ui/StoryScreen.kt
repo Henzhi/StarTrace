@@ -1,5 +1,6 @@
 package com.startrace.feature.story.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -58,6 +59,10 @@ fun StoryScreen(
             snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
         }
     }
+
+    // ── 系统返回键：子页面内拦截，回到上一页而非跳回星系 ──
+    BackHandler(enabled = showGenerator) { showGenerator = false }
+    BackHandler(enabled = selectedStory != null) { selectedStory = null }
 
     // 生成器页面
     if (showGenerator) {

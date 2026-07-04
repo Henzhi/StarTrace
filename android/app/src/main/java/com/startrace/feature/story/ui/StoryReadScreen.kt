@@ -22,6 +22,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.startrace.core.database.entity.StoryEntity
+import com.startrace.design.component.SwipeBackBox
 import com.startrace.design.theme.StarColors
 import java.text.SimpleDateFormat
 import java.util.*
@@ -41,10 +42,11 @@ fun StoryReadScreen(
 ) {
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
+    SwipeBackBox(onBack = onBack) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
                 Brush.verticalGradient(
                     listOf(Color(0xFF0A0A0F), Color(0xFF0D0D1A), Color(0xFF1A1A3E))
                 )
@@ -123,6 +125,7 @@ fun StoryReadScreen(
             }
         }
     }
+}
 
 /**
  * 简易 Markdown → AnnotatedString

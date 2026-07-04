@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.startrace.design.component.SwipeBackBox
 import com.startrace.design.theme.StarColors
 import com.startrace.feature.fragment.ui.component.DOMAIN_TAGS
 import com.startrace.feature.story.viewmodel.StoryGeneratorViewModel
@@ -35,11 +36,12 @@ fun StoryGeneratorView(
 
     LaunchedEffect(Unit) { viewModel.reset() }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(StarColors.Background)
-    ) {
+    SwipeBackBox(onBack = onClose) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(StarColors.Background)
+        ) {
         Column(Modifier.fillMaxSize()) {
             // ══ 标题（与 记录碎片 / 故事库 同款风格） ══
             Column(
@@ -157,6 +159,7 @@ fun StoryGeneratorView(
                 }
                 item { Spacer(Modifier.height(32.dp)) }
             }
+        }
         }
     }
 }
