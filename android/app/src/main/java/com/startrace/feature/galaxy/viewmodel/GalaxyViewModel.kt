@@ -3,6 +3,7 @@ package com.startrace.feature.galaxy.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.startrace.core.data.repository.FragmentRepository
+import com.startrace.core.data.repository.LocalUserRepository
 import com.startrace.core.database.dao.StoryDao
 import com.startrace.core.database.dao.StoryFragmentRefDao
 import com.startrace.core.database.entity.FragmentEntity
@@ -47,11 +48,13 @@ data class GalaxyUiState(
  * 观察 Room 碎片变化，自动转换为 GraphNode 并运行力导向模拟，
  * 输出节点位置供 Canvas 渲染。
  */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class GalaxyViewModel @Inject constructor(
     private val fragmentRepository: FragmentRepository,
     private val storyDao: StoryDao,
-    private val storyFragmentRefDao: StoryFragmentRefDao
+    private val storyFragmentRefDao: StoryFragmentRefDao,
+    private val userRepository: LocalUserRepository
 ) : ViewModel() {
 
     private val engine = ForceDirectedEngine(
@@ -94,8 +97,11 @@ class GalaxyViewModel @Inject constructor(
         viewModelScope.launch {
             combine(
                 fragmentRepository.observeAll(),
-                storyDao.observeAll()
-            ) { fragments, stories -> fragments to stories }
+                userRepository.userIdFlow
+            ) { fragments, userId -> fragments to userId }
+                .flatMapLatest { (fragments, uid) ->
+                    storyDao.observeAll(uid).map { stories -> fragments to stories }
+                }
                 .collect { (fragments, stories) ->
                     runSimulation(fragments, stories)
                 }

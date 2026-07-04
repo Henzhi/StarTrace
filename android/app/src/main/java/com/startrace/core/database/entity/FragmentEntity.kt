@@ -12,6 +12,9 @@ data class FragmentEntity(
     @PrimaryKey
     val id: String,
 
+    @ColumnInfo(name = "user_id")
+    val userId: String = "",         // 关联用户，"" 表示未登录
+
     val content: String,
 
     @ColumnInfo(name = "tags_json")

@@ -12,6 +12,9 @@ data class StoryEntity(
     @PrimaryKey
     val id: String,
 
+    @ColumnInfo(name = "user_id")
+    val userId: String = "",         // 关联用户，"" 表示未登录
+
     val title: String,
     val content: String,
 

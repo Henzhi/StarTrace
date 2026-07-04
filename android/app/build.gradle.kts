@@ -26,10 +26,12 @@ android {
     buildTypes {
         debug {
             isDebuggable = true
+            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080/\"")
         }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            buildConfigField("String", "API_BASE_URL", "\"https://api.startrace.app/\"")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -90,6 +92,9 @@ dependencies {
 
     // DataStore — 偏好存储
     implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // Security — 加密 SharedPreferences
+    implementation("androidx.security:security-crypto-ktx:1.1.0-alpha06")
 
     // Network
     implementation("com.squareup.retrofit2:retrofit:2.11.0")

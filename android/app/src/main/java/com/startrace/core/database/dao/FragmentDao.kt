@@ -7,22 +7,22 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface FragmentDao {
 
-    @Query("SELECT * FROM fragments WHERE is_archived = 0 ORDER BY created_at DESC")
-    fun observeAll(): Flow<List<FragmentEntity>>
+    @Query("SELECT * FROM fragments WHERE user_id = :userId AND is_archived = 0 ORDER BY created_at DESC")
+    fun observeAll(userId: String = ""): Flow<List<FragmentEntity>>
 
     @Query("SELECT * FROM fragments WHERE id = :id")
     suspend fun getById(id: String): FragmentEntity?
 
     @Query("""
         SELECT * FROM fragments
-        WHERE is_archived = 0
+        WHERE user_id = :userId AND is_archived = 0
         AND (content LIKE '%' || :query || '%')
         ORDER BY created_at DESC
     """)
-    fun search(query: String): Flow<List<FragmentEntity>>
+    fun search(query: String, userId: String = ""): Flow<List<FragmentEntity>>
 
-    @Query("SELECT * FROM fragments WHERE is_archived = 0 AND domain_tag = :domain")
-    fun filterByDomain(domain: String): Flow<List<FragmentEntity>>
+    @Query("SELECT * FROM fragments WHERE user_id = :userId AND is_archived = 0 AND domain_tag = :domain")
+    fun filterByDomain(domain: String, userId: String = ""): Flow<List<FragmentEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(fragment: FragmentEntity)
@@ -39,9 +39,9 @@ interface FragmentDao {
     @Query("UPDATE fragments SET is_archived = 1 WHERE id IN (:ids)")
     suspend fun archiveByIds(ids: List<String>)
 
-    @Query("SELECT COUNT(*) FROM fragments WHERE is_archived = 0")
-    fun observeCount(): Flow<Int>
+    @Query("SELECT COUNT(*) FROM fragments WHERE user_id = :userId AND is_archived = 0")
+    fun observeCount(userId: String = ""): Flow<Int>
 
-    @Query("SELECT COUNT(*) FROM fragments WHERE domain_tag = :domain")
-    suspend fun countByDomain(domain: String): Int
+    @Query("SELECT COUNT(*) FROM fragments WHERE user_id = :userId AND domain_tag = :domain")
+    suspend fun countByDomain(domain: String, userId: String = ""): Int
 }

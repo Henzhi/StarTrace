@@ -11,6 +11,7 @@ import com.startrace.core.database.entity.StoryEntity
 import com.startrace.core.database.entity.StoryFragmentRef
 import com.startrace.core.network.StoryGenerator
 import com.startrace.core.network.TokenEvent
+import com.startrace.core.network.TokenManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -44,7 +45,8 @@ class StoryGeneratorViewModel @Inject constructor(
     private val llmConfigRepository: LLMConfigRepository,
     private val storyDao: StoryDao,
     private val storyFragmentRefDao: StoryFragmentRefDao,
-    private val storyGenerator: StoryGenerator
+    private val storyGenerator: StoryGenerator,
+    private val userRepository: com.startrace.core.data.repository.LocalUserRepository
 ) : ViewModel() {
 
     private val _selectedIds = MutableStateFlow<Set<String>>(emptySet())
@@ -95,6 +97,9 @@ class StoryGeneratorViewModel @Inject constructor(
         else _length.value
     }
 
+    /** 获取当前用户 ID */
+    private suspend fun currentUserId(): String = userRepository.getUserId()
+
     /** 流式生成故事 */
     fun generate() {
         val ids = _selectedIds.value
@@ -144,6 +149,7 @@ class StoryGeneratorViewModel @Inject constructor(
                                 }
                                 _result.value = StoryEntity(
                                     id = UUID.randomUUID().toString(),
+                                    userId = currentUserId(),
                                     title = title,
                                     content = body,
                                     fragmentIdsJson = JSONArray(selectedFragmentIds).toString(),
@@ -174,6 +180,7 @@ class StoryGeneratorViewModel @Inject constructor(
                                 }
                                 _result.value = StoryEntity(
                                     id = UUID.randomUUID().toString(),
+                                    userId = currentUserId(),
                                     title = title,
                                     content = body,
                                     fragmentIdsJson = JSONArray(selectedFragmentIds).toString(),

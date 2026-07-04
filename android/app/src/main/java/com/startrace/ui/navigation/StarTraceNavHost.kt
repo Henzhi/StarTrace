@@ -14,6 +14,7 @@ import androidx.navigation.compose.rememberNavController
 import com.startrace.feature.fragment.ui.RecordScreen
 import com.startrace.feature.galaxy.ui.GalaxyScreen
 import com.startrace.feature.profile.ui.ProfileScreen
+import com.startrace.feature.story.ui.LLMConfigScreen
 import com.startrace.feature.story.ui.StoryScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -83,7 +84,12 @@ fun StarTraceNavHost() {
             }
             composable(TopLevelRoute.Record.route) { RecordScreen() }
             composable(TopLevelRoute.Story.route) { StoryScreen() }
-            composable(TopLevelRoute.Profile.route) { ProfileScreen() }
+            composable(TopLevelRoute.Profile.route) { ProfileScreen(
+                    onNavigateToLLMConfig = { navController.navigate("llm_config") }
+                ) }
+                composable("llm_config") {
+                    LLMConfigScreen(modifier = Modifier.padding(innerPadding))
+                }
         }
     }
 }

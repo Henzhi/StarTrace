@@ -8,10 +8,12 @@ import com.startrace.core.database.dao.FragmentDao
 import com.startrace.core.database.dao.LLMConfigDao
 import com.startrace.core.database.dao.StoryDao
 import com.startrace.core.database.dao.StoryFragmentRefDao
+import com.startrace.core.database.dao.UserDao
 import com.startrace.core.database.entity.FragmentEntity
 import com.startrace.core.database.entity.LLMConfigEntity
 import com.startrace.core.database.entity.StoryEntity
 import com.startrace.core.database.entity.StoryFragmentRef
+import com.startrace.core.database.entity.UserEntity
 
 /**
  * V1 → V2 迁移：新增 story_fragment_refs 多对多关联表，
@@ -52,14 +54,34 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
+/**
+ * V2 → V3 迁移：新增 users 表，fragments 和 stories 添加 user_id 列
+ */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE fragments ADD COLUMN user_id TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE stories ADD COLUMN user_id TEXT NOT NULL DEFAULT ''")
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT NOT NULL PRIMARY KEY,
+                username TEXT NOT NULL,
+                token TEXT NOT NULL,
+                joined_at INTEGER NOT NULL,
+                last_login_at INTEGER NOT NULL
+            )
+        """)
+    }
+}
+
 @Database(
     entities = [
         FragmentEntity::class,
         StoryEntity::class,
         LLMConfigEntity::class,
-        StoryFragmentRef::class
+        StoryFragmentRef::class,
+        UserEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -67,4 +89,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun storyDao(): StoryDao
     abstract fun llmConfigDao(): LLMConfigDao
     abstract fun storyFragmentRefDao(): StoryFragmentRefDao
+    abstract fun userDao(): UserDao
 }

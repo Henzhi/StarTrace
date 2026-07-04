@@ -2,6 +2,7 @@ package com.startrace.feature.story.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.startrace.core.data.repository.LocalUserRepository
 import com.startrace.core.database.dao.StoryDao
 import com.startrace.core.database.entity.StoryEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,7 +20,6 @@ data class StoryListUiState(
         get() = selectedStyles.isNotEmpty()
 }
 
-/** 故事风格标签定义 */
 data class StoryStyleTag(val key: String, val emoji: String, val label: String)
 
 val STORY_STYLE_TAGS = listOf(
@@ -34,19 +34,24 @@ val STORY_STYLE_TAGS = listOf(
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class StoryListViewModel @Inject constructor(
-    private val storyDao: StoryDao
+    private val storyDao: StoryDao,
+    private val userRepository: LocalUserRepository
 ) : ViewModel() {
 
     private val _selectedStyles = MutableStateFlow<Set<String>>(emptySet())
     private val _isLoading = MutableStateFlow(true)
 
     private val _filteredStories: StateFlow<List<StoryEntity>> = combine(
-        storyDao.observeAll(),
+        userRepository.userIdFlow,
         _selectedStyles
-    ) { allStories, styles ->
-        _isLoading.value = false
-        if (styles.isEmpty()) allStories
-        else allStories.filter { it.style in styles }
+    ) { uid, styles ->
+        Pair(uid, styles)
+    }.flatMapLatest { (uid, styles) ->
+        storyDao.observeAll(uid).map { stories ->
+            _isLoading.value = false
+            if (styles.isEmpty()) stories
+            else stories.filter { it.style in styles }
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val uiState: StateFlow<StoryListUiState> = combine(
@@ -54,20 +59,15 @@ class StoryListViewModel @Inject constructor(
         _selectedStyles,
         _isLoading
     ) { stories, styles, loading ->
-        StoryListUiState(
-            stories = stories,
-            selectedStyles = styles,
-            isLoading = loading
-        )
+        StoryListUiState(stories = stories, selectedStyles = styles, isLoading = loading)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StoryListUiState())
 
-    // ═══════════════════════════════════════════════════════
-    // 风格筛选
-    // ═══════════════════════════════════════════════════════
+    private val _snackbarEvent = MutableSharedFlow<String>()
+    val snackbarEvent: SharedFlow<String> = _snackbarEvent.asSharedFlow()
 
-    fun toggleStyleFilter(style: String) {
+    fun toggleStyleFilter(tag: String) {
         _selectedStyles.update { current ->
-            if (style in current) current - style else current + style
+            if (tag in current) current - tag else current + tag
         }
     }
 
@@ -75,18 +75,10 @@ class StoryListViewModel @Inject constructor(
         _selectedStyles.value = emptySet()
     }
 
-    // ═══════════════════════════════════════════════════════
-    // 单条操作
-    // ═══════════════════════════════════════════════════════
-
-    private val _snackbarEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
-    val snackbarEvent: SharedFlow<String> = _snackbarEvent.asSharedFlow()
-
-    /** 删除故事 */
     fun deleteStory(story: StoryEntity) {
         viewModelScope.launch {
             storyDao.delete(story)
-            _snackbarEvent.emit("已删除故事「${story.title}」")
+            _snackbarEvent.emit("故事已删除")
         }
     }
 }

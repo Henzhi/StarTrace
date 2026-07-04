@@ -7,11 +7,14 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface StoryDao {
 
-    @Query("SELECT * FROM stories ORDER BY created_at DESC")
-    fun observeAll(): Flow<List<StoryEntity>>
+    @Query("SELECT * FROM stories WHERE user_id = :userId ORDER BY created_at DESC")
+    fun observeAll(userId: String = ""): Flow<List<StoryEntity>>
 
     @Query("SELECT * FROM stories WHERE id = :id")
     suspend fun getById(id: String): StoryEntity?
+
+    @Query("SELECT * FROM stories WHERE user_id = :userId AND style = :style ORDER BY created_at DESC")
+    fun filterByStyle(style: String, userId: String = ""): Flow<List<StoryEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(story: StoryEntity)
@@ -22,6 +25,6 @@ interface StoryDao {
     @Delete
     suspend fun delete(story: StoryEntity)
 
-    @Query("SELECT COUNT(*) FROM stories")
-    fun observeCount(): Flow<Int>
+    @Query("SELECT COUNT(*) FROM stories WHERE user_id = :userId")
+    fun observeCount(userId: String = ""): Flow<Int>
 }
