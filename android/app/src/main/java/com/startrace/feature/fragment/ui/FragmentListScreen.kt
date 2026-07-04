@@ -13,8 +13,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.startrace.core.database.entity.FragmentEntity
 import com.startrace.design.theme.StarColors
@@ -57,31 +59,34 @@ fun FragmentListScreen(
         }
     }
 
-    Scaffold(
-        modifier = modifier,
-        containerColor = StarColors.Background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = {
-            // 批量操作栏（选择模式下显示）
-            AnimatedVisibility(
-                visible = uiState.isSelectionMode,
-                enter = slideInVertically(initialOffsetY = { it }),
-                exit = slideOutVertically(targetOffsetY = { it })
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(StarColors.Background)
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            // ══ 标题（与 记录碎片 / 故事库 同款风格） ══
+            Column(
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp)
             ) {
-                BatchActionBar(
-                    selectedCount = uiState.selectedIds.size,
-                    onDismiss = { viewModel.exitSelectionMode() },
-                    onDelete = { showDeleteDialog = true },
-                    onArchive = { showArchiveDialog = true }
+                Text(
+                    text = "星辰编织",
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    ),
+                    color = StarColors.OnBackground
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "浏览与管理你的灵感碎片",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = StarColors.OnSurface.copy(alpha = 0.5f)
                 )
             }
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             // ══ 搜索栏 ═══════════════════════════════
             StarSearchBar(
                 query = uiState.searchQuery,
@@ -207,6 +212,27 @@ fun FragmentListScreen(
                     }
                 }
             }
+        }
+
+        // ══ Snackbar ══════════════════════════════
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+
+        // ══ 批量操作栏（选择模式下显示） ════════════
+        AnimatedVisibility(
+            visible = uiState.isSelectionMode,
+            enter = slideInVertically(initialOffsetY = { it }),
+            exit = slideOutVertically(targetOffsetY = { it }),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            BatchActionBar(
+                selectedCount = uiState.selectedIds.size,
+                onDismiss = { viewModel.exitSelectionMode() },
+                onDelete = { showDeleteDialog = true },
+                onArchive = { showArchiveDialog = true }
+            )
         }
     }
 

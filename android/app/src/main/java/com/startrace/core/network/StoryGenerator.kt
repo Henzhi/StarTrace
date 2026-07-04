@@ -33,8 +33,8 @@ class StoryGenerator @Inject constructor(
     private val keyStore: KeyStoreManager
 ) {
     private val client = OkHttpClient.Builder()
-        .connectTimeout(60, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
+        .connectTimeout(120, TimeUnit.SECONDS)
+        .readTimeout(600, TimeUnit.SECONDS)   // 长篇故事可能需要更长时间
         .build()
 
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
@@ -75,9 +75,8 @@ class StoryGenerator @Inject constructor(
                 })
             })
             put("temperature", 0.8)
-            put("max_tokens", when (length) {
-                "short" -> 3000; "medium" -> 8000; else -> 16000
-            })
+            // 不设 max_tokens：部分 LLM 后端（Ollama/vLLM/本地模型）数值设太高反而
+            // 会被忽略回落到很低的服务端默认值。不传则走各后端自身的"无限制/填满上下文"逻辑
         }
 
         val request = Request.Builder()
@@ -99,14 +98,15 @@ class StoryGenerator @Inject constructor(
         val message = choices.getJSONObject(0).getJSONObject("message")
         val content = message.getString("content")
 
-        // 提取标题（取第一行或 AI 返回的标题）
+        // 提取标题并剔除正文中的 # 标题行
         val title = extractTitle(content)
+        val storyBody = stripTitleLine(content).trim().trimEnd('，', ',', '"', '\'')
 
         // 构建 StoryEntity
         StoryEntity(
             id = UUID.randomUUID().toString(),
             title = title,
-            content = content.trim(),
+            content = storyBody,
             fragmentIdsJson = JSONArray(fragments.map { it.id }).toString(),
             length = length,
             style = style,
@@ -127,36 +127,53 @@ class StoryGenerator @Inject constructor(
             "mystery" -> "悬疑风格，充满悬念和推理"
             else -> "创意写作"
         }
-        val lengthDesc = when (length) {
-            "short" -> "800-1500 字"
-            "medium" -> "3000-5000 字"
-            "long" -> "6000-10000 字"
-            else -> "适中的篇幅"
+        // 篇幅提示：预设映射为字数；自定义直接透传用户输入
+        val lengthHint = when (length) {
+            "short" -> "800 字左右"
+            "medium" -> "1500 字左右"
+            "long" -> "3000 字左右"
+            else -> length  // 自定义字数（如 "5000 字"、"8000字中等篇幅" 等）
         }
         return "你是一个创意写作助手。请根据用户提供的灵感碎片，创作一段连贯的${styleDesc}故事。" +
-                "故事长度约$lengthDesc。需要有一个吸引人的标题。请直接输出故事，不要有额外说明。"
+                "篇幅参考：${lengthHint}，但故事完整自然收尾的优先级远高于字数限制。" +
+                "你必须在故事达到一个自然的结束点时才停止，绝不能在半句或逗号后停止。" +
+                "如果故事需要超出参考字数才能完整，就超出。" +
+                "格式要求：第一行必须以\"# 标题内容\"的格式输出标题（例如\"# 星辰之外\"），" +
+                "从第二行开始输出故事正文。正文中不要再次出现\"#\"符号。" +
+                "请直接按此格式输出，不要有其他额外说明。"
     }
 
     private fun buildUserPrompt(fragments: List<FragmentEntity>): String {
-        if (fragments.isEmpty()) return "请根据你的创意写一个故事。"
+        if (fragments.isEmpty()) return "请根据你的创意写一个完整的故事，确保有自然的结尾。"
         val fragmentsText = fragments.joinToString("\n\n") { f ->
             val emoji = domainEmoji(f.domainTag)
             "【$emoji ${f.domainTag}】${f.content}"
         }
-        return "以下是我的灵感碎片，请将它们编织成一个连贯的故事：\n\n$fragmentsText"
+        return "以下是我的灵感碎片，请将它们编织成一个连贯的故事：\n\n$fragmentsText" +
+                "\n\n请务必将故事写到完整结束，有一个自然、令人满意的结尾。不要在句子中间停下来。"
     }
 
+    /**
+     * 从内容中提取标题。第一行若以 \"# \" 开头则取其后内容；
+     * 否则取第一句（最多 20 字）。
+     */
     private fun extractTitle(content: String): String {
-        // 尝试从内容中提取 ## 或 ** 标记的标题
-        val lines = content.lines()
-        for (line in lines) {
-            val cleaned = line.trimStart('#', ' ', '*').trim()
-            if (cleaned.isNotBlank() && cleaned.length <= 50) {
-                return cleaned
-            }
+        val firstLine = content.lines().firstOrNull { it.isNotBlank() } ?: return "未命名故事"
+        return if (firstLine.startsWith("# ")) {
+            firstLine.removePrefix("# ").trim().take(50)
+        } else {
+            firstLine.trim().take(20) + if (firstLine.length > 20) "..." else ""
         }
-        // 取第一句（最多 20 字）
-        return content.take(20).trim() + if (content.length > 20) "..." else ""
+    }
+
+    /** 剔除内容中的 # 标题行（若第一非空行以 "# " 开头），返回正文内容 */
+    private fun stripTitleLine(content: String): String {
+        val lines = content.lines()
+        val firstNonBlankIdx = lines.indexOfFirst { it.isNotBlank() }
+        if (firstNonBlankIdx < 0) return content
+        return if (lines[firstNonBlankIdx].startsWith("# ")) {
+            lines.filterIndexed { i, _ -> i != firstNonBlankIdx }.joinToString("\n")
+        } else content
     }
 
     /**
@@ -186,9 +203,7 @@ class StoryGenerator @Inject constructor(
                 })
             })
             put("temperature", 0.8)
-            put("max_tokens", when (length) {
-                "short" -> 3000; "medium" -> 8000; else -> 16000
-            })
+            // 不设 max_tokens：部分 LLM 后端数值设太高反而会被忽略回落到很低的服务端默认值
             put("stream", true)
         }
 
@@ -211,19 +226,33 @@ class StoryGenerator @Inject constructor(
             return@flow
         }
 
+        var wasTruncated = false
         reader.use { r ->
             var line: String?
             while (r.readLine().also { line = it } != null) {
-                val event = SSEMessageParser.parseLine(line!!)
+                val rawLine = line!!
+
+                // 服务端强制截断标记：finish_reason=length 说明 AI 还有内容但被 token 限制卡断了
+                if (rawLine.contains("\"finish_reason\":\"length\"")) {
+                    wasTruncated = true
+                }
+
+                val event = SSEMessageParser.parseLine(rawLine)
                 when (event) {
                     is TokenEvent.Token -> emit(event)
-                    is TokenEvent.Complete -> { emit(event); return@flow }
+                    is TokenEvent.Complete -> {
+                        if (wasTruncated) emit(TokenEvent.Truncated)
+                        else emit(event)
+                        return@flow
+                    }
+                    is TokenEvent.Truncated -> { emit(event); return@flow }
                     is TokenEvent.Error -> { emit(event); return@flow }
                     null -> { /* skip empty/non-content lines */ }
                 }
             }
         }
-        emit(TokenEvent.Complete)
+        if (wasTruncated) emit(TokenEvent.Truncated)
+        else emit(TokenEvent.Complete)
     }.flowOn(Dispatchers.IO).buffer(Channel.BUFFERED)
 
     private fun domainEmoji(tag: String): String = when (tag) {

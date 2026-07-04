@@ -7,9 +7,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -19,6 +20,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.startrace.core.database.entity.StoryEntity
 import com.startrace.design.theme.StarColors
 import java.text.SimpleDateFormat
@@ -32,7 +34,6 @@ import java.util.*
  * - **粗体** / *斜体*
  * - 普通段落
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StoryReadScreen(
     story: StoryEntity,
@@ -40,36 +41,46 @@ fun StoryReadScreen(
 ) {
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
 
-    Scaffold(
-        containerColor = Color.Transparent,
-        topBar = {
-            TopAppBar(
-                title = { Text("阅读", color = StarColors.OnBackground) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "返回", tint = StarColors.OnSurface)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = StarColors.Surface.copy(alpha = 0.8f))
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFF0A0A0F), Color(0xFF0D0D1A), Color(0xFF1A1A3E))
+                )
             )
-        }
-    ) { padding ->
-        Box(
+    ) {
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xFF0A0A0F), Color(0xFF0D0D1A), Color(0xFF1A1A3E))
-                    )
-                )
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(20.dp)
-            ) {
+            // ══ 标题（与 记录碎片 同款风格） ══
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回", tint = StarColors.OnSurface)
+                }
+                Spacer(Modifier.width(4.dp))
+                Column {
+                    Text(
+                        text = "阅读",
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        ),
+                        color = StarColors.OnBackground
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "沉浸在为你编织的故事中",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = StarColors.OnSurface.copy(alpha = 0.5f)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
                 // 风格/长度标签
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val styleLabel = when (story.style) {
@@ -112,7 +123,6 @@ fun StoryReadScreen(
             }
         }
     }
-}
 
 /**
  * 简易 Markdown → AnnotatedString

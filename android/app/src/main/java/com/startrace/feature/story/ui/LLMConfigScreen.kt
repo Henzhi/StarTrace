@@ -23,12 +23,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.startrace.core.database.entity.LLMConfigEntity
 import com.startrace.design.theme.StarColors
 import com.startrace.feature.story.viewmodel.LLMConfigViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LLMConfigScreen(
     viewModel: LLMConfigViewModel = hiltViewModel(),
@@ -36,53 +36,70 @@ fun LLMConfigScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        modifier = modifier,
-        containerColor = StarColors.Background,
-        topBar = {
-            TopAppBar(
-                title = { Text("LLM 配置", color = StarColors.OnBackground) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = StarColors.Surface)
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { viewModel.openCreateForm() },
-                containerColor = StarColors.Primary
-            ) { Icon(Icons.Default.Add, "添加配置", tint = StarColors.OnPrimary) }
-        }
-    ) { padding ->
-        if (uiState.configs.isEmpty()) {
-            // 空状态
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("🤖", style = MaterialTheme.typography.displayMedium)
-                    Spacer(Modifier.height(12.dp))
-                    Text("还没有 LLM 配置", style = MaterialTheme.typography.titleMedium, color = StarColors.OnBackground)
-                    Text("添加 OpenAI 兼容的 API 地址", style = MaterialTheme.typography.bodySmall, color = StarColors.OnSurface)
-                    Spacer(Modifier.height(16.dp))
-                    OutlinedButton(onClick = { viewModel.openCreateForm() }) {
-                        Text("添加配置")
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(StarColors.Background)
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            // ══ 标题（与 记录碎片 同款风格） ══
+            Column(
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp)
+            ) {
+                Text(
+                    text = "LLM 配置",
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    ),
+                    color = StarColors.OnBackground
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "管理你的 AI 写作引擎",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = StarColors.OnSurface.copy(alpha = 0.5f)
+                )
+            }
+
+            if (uiState.configs.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("🤖", style = MaterialTheme.typography.displayMedium)
+                        Spacer(Modifier.height(12.dp))
+                        Text("还没有 LLM 配置", style = MaterialTheme.typography.titleMedium, color = StarColors.OnBackground)
+                        Text("添加 OpenAI 兼容的 API 地址", style = MaterialTheme.typography.bodySmall, color = StarColors.OnSurface)
+                        Spacer(Modifier.height(16.dp))
+                        OutlinedButton(onClick = { viewModel.openCreateForm() }) {
+                            Text("添加配置")
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 80.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(uiState.configs, key = { it.id }) { config ->
+                        ConfigCard(
+                            config = config,
+                            onEdit = { viewModel.openEditForm(config) },
+                            onDelete = { viewModel.delete(config) }
+                        )
                     }
                 }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(uiState.configs, key = { it.id }) { config ->
-                    ConfigCard(
-                        config = config,
-                        onEdit = { viewModel.openEditForm(config) },
-                        onDelete = { viewModel.delete(config) }
-                    )
-                }
-            }
         }
+
+        // FAB
+        FloatingActionButton(
+            onClick = { viewModel.openCreateForm() },
+            containerColor = StarColors.Primary,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+        ) { Icon(Icons.Default.Add, "添加配置", tint = StarColors.OnPrimary) }
     }
 
     // 新增/编辑弹窗

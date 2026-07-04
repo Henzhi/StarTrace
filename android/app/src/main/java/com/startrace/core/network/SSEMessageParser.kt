@@ -7,8 +7,11 @@ sealed class TokenEvent {
     /** 新 token 到达 */
     data class Token(val text: String) : TokenEvent()
 
-    /** 流式输出完成 */
+    /** 流式输出正常完成 */
     data object Complete : TokenEvent()
+
+    /** 流式输出完成，但被后端因 token 限制截断 (finish_reason=length) */
+    data object Truncated : TokenEvent()
 
     /** 解析或网络错误 */
     data class Error(val message: String) : TokenEvent()
@@ -46,7 +49,7 @@ object SSEMessageParser {
 
         val json = trimmed.removePrefix("data: ")
 
-        // 跳过非数据消息（如 data: {"id":...} 但无 content）
+        // 跳过非数据消息
         if (json == "[DONE]") return TokenEvent.Complete
 
         return try {

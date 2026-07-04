@@ -47,4 +47,5 @@ Desktop.ini
 docker-compose.override.yml
 
 # ===== WorkBuddy =====
-.workbuddy/memory/
+.workbuddy/
+.trae/

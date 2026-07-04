@@ -223,7 +223,7 @@ private fun NodeDetailSheet(
             // 关联故事
             if (linkedStories.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
-                Divider(color = StarColors.OnSurface.copy(alpha = 0.1f))
+                HorizontalDivider(color = StarColors.OnSurface.copy(alpha = 0.1f))
                 Spacer(Modifier.height(12.dp))
                 Text("关联故事 (${linkedStories.size})", style = MaterialTheme.typography.labelLarge, color = StarColors.Primary)
                 Spacer(Modifier.height(8.dp))

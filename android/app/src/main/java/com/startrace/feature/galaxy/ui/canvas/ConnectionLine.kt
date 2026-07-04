@@ -65,7 +65,7 @@ object ConnectionLine {
         val len = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
         val cp = Offset(midX - dy / len * len * 0.15f, midY + dx / len * len * 0.15f)
 
-        val path = Path().apply { moveTo(start.x, start.y); quadraticBezierTo(cp.x, cp.y, end.x, end.y) }
+        val path = Path().apply { moveTo(start.x, start.y); quadraticTo(cp.x, cp.y, end.x, end.y) }
         val maxDist = 2000f * zoom
         val alpha = (1f - (len / maxDist).coerceIn(0f, 1f)) * 0.6f
         drawPath(path, StarColors.NodeConnection.copy(alpha = alpha), style = Stroke(width * density))

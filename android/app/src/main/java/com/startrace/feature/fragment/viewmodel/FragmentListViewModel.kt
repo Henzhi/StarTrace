@@ -30,6 +30,7 @@ data class FragmentListUiState(
 /**
  * 碎片列表 ViewModel — 管理碎片集合的展示、搜索、筛选、批量操作
  */
+@OptIn(kotlinx.coroutines.FlowPreview::class)
 @HiltViewModel
 class FragmentListViewModel @Inject constructor(
     private val repository: FragmentRepository

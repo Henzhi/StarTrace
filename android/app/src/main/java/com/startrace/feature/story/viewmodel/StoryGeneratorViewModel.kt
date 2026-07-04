@@ -25,6 +25,8 @@ data class StoryGeneratorUiState(
     val selectedFragmentIds: Set<String> = emptySet(),
     val style: String = "scifi",
     val length: String = "medium",
+    val useCustomLength: Boolean = false,
+    val customLengthText: String = "",
     val isGenerating: Boolean = false,
     val streamingTokens: String = "",       // 流式输出累积
     val result: StoryEntity? = null,
@@ -48,6 +50,8 @@ class StoryGeneratorViewModel @Inject constructor(
     private val _selectedIds = MutableStateFlow<Set<String>>(emptySet())
     private val _style = MutableStateFlow("scifi")
     private val _length = MutableStateFlow("medium")
+    private val _useCustomLength = MutableStateFlow(false)
+    private val _customLengthText = MutableStateFlow("")
     private val _isGenerating = MutableStateFlow(false)
     private val _streamingTokens = MutableStateFlow("")
     private val _result = MutableStateFlow<StoryEntity?>(null)
@@ -59,7 +63,8 @@ class StoryGeneratorViewModel @Inject constructor(
     val uiState: StateFlow<StoryGeneratorUiState> = combine(
         listOf(
             fragmentRepository.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()),
-            _selectedIds, _style, _length, _isGenerating, _streamingTokens, _result, _error, _savedId
+            _selectedIds, _style, _length, _useCustomLength, _customLengthText,
+            _isGenerating, _streamingTokens, _result, _error, _savedId
         )
     ) { values ->
         StoryGeneratorUiState(
@@ -67,11 +72,13 @@ class StoryGeneratorViewModel @Inject constructor(
             selectedFragmentIds = values[1] as Set<String>,
             style = values[2] as String,
             length = values[3] as String,
-            isGenerating = values[4] as Boolean,
-            streamingTokens = values[5] as String,
-            result = values[6] as StoryEntity?,
-            error = values[7] as String?,
-            savedStoryId = values[8] as String?
+            useCustomLength = values[4] as Boolean,
+            customLengthText = values[5] as String,
+            isGenerating = values[6] as Boolean,
+            streamingTokens = values[7] as String,
+            result = values[8] as StoryEntity?,
+            error = values[9] as String?,
+            savedStoryId = values[10] as String?
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StoryGeneratorUiState())
 
@@ -79,7 +86,14 @@ class StoryGeneratorViewModel @Inject constructor(
     fun selectAll() { viewModelScope.launch { _selectedIds.value = fragmentRepository.observeAll().first().map { it.id }.toSet() } }
     fun clearSelection() { _selectedIds.value = emptySet() }
     fun setStyle(s: String) { _style.value = s }
-    fun setLength(l: String) { _length.value = l }
+    fun setLength(l: String) { _length.value = l; if (l != "custom") _useCustomLength.value = false }
+    fun setCustomLength(text: String) { _customLengthText.value = text; _useCustomLength.value = true; _length.value = "custom" }
+
+    /** 获取实际传递给 LLM 的长度值：预设的字数范围或用户自定义字数 */
+    private fun effectiveLength(): String {
+        return if (_useCustomLength.value) _customLengthText.value.trim().ifEmpty { "1000 字" }
+        else _length.value
+    }
 
     /** 流式生成故事 */
     fun generate() {
@@ -106,7 +120,7 @@ class StoryGeneratorViewModel @Inject constructor(
 
                 storyGenerator.generateStream(
                     config = config, fragments = selectedFragments,
-                    style = _style.value, length = _length.value
+                    style = _style.value, length = effectiveLength()
                 ).collect { event ->
                     when (event) {
                         is TokenEvent.Token -> {
@@ -114,12 +128,24 @@ class StoryGeneratorViewModel @Inject constructor(
                             _streamingTokens.value = fullContent.toString()
                         }
                         is TokenEvent.Complete -> {
-                            val content = fullContent.toString().trim()
-                            if (content.isNotBlank()) {
+                            // 去掉末尾 LLM 在 stop 信号前残留的逗号和引号 artifact
+                            val raw = fullContent.toString()
+                                .trim()
+                                .trimEnd('，', ',', '"', '\'')
+                            if (raw.isNotBlank()) {
+                                // 提取 # 标题行（第一行），正文中剔除标题行
+                                val lines = raw.lines()
+                                val firstNonBlank = lines.firstOrNull { it.isNotBlank() }
+                                val (title, body) = if (firstNonBlank != null && firstNonBlank.startsWith("# ")) {
+                                    firstNonBlank.removePrefix("# ").trim().take(50) to
+                                        lines.drop(1).joinToString("\n").trim()
+                                } else {
+                                    (firstNonBlank?.trim()?.take(50) ?: "未命名故事") to raw
+                                }
                                 _result.value = StoryEntity(
                                     id = UUID.randomUUID().toString(),
-                                    title = content.lines().firstOrNull { it.isNotBlank() }?.trim()?.take(50) ?: "未命名故事",
-                                    content = content,
+                                    title = title,
+                                    content = body,
                                     fragmentIdsJson = JSONArray(selectedFragmentIds).toString(),
                                     length = _length.value,
                                     style = _style.value,
@@ -128,9 +154,39 @@ class StoryGeneratorViewModel @Inject constructor(
                                     llmConfigId = config.id,
                                     createdAt = System.currentTimeMillis()
                                 )
-                                // 暂存选中的碎片 ID，保存时写入 junction table
                                 _selectedFragmentIdsForSave = selectedFragmentIds.toSet()
                             }
+                            _isGenerating.value = false
+                        }
+                        is TokenEvent.Truncated -> {
+                            // 后端因 token 限制强制截断，仍保存已有内容但给出警告
+                            val raw = fullContent.toString()
+                                .trim()
+                                .trimEnd('，', ',', '"', '\'')
+                            if (raw.isNotBlank()) {
+                                val lines = raw.lines()
+                                val firstNonBlank = lines.firstOrNull { it.isNotBlank() }
+                                val (title, body) = if (firstNonBlank != null && firstNonBlank.startsWith("# ")) {
+                                    firstNonBlank.removePrefix("# ").trim().take(50) to
+                                        lines.drop(1).joinToString("\n").trim()
+                                } else {
+                                    ((firstNonBlank?.trim()?.take(50) ?: "未命名故事") + "（截断）") to raw
+                                }
+                                _result.value = StoryEntity(
+                                    id = UUID.randomUUID().toString(),
+                                    title = title,
+                                    content = body,
+                                    fragmentIdsJson = JSONArray(selectedFragmentIds).toString(),
+                                    length = _length.value,
+                                    style = _style.value,
+                                    positionX = (Math.random() * 400 - 200).toFloat(),
+                                    positionY = (Math.random() * 400 - 200).toFloat(),
+                                    llmConfigId = config.id,
+                                    createdAt = System.currentTimeMillis()
+                                )
+                                _selectedFragmentIdsForSave = selectedFragmentIds.toSet()
+                            }
+                            _error.value = "故事被后端 token 限制截断，请尝试更换 LLM 或减少碎片数量"
                             _isGenerating.value = false
                         }
                         is TokenEvent.Error -> {
@@ -157,5 +213,5 @@ class StoryGeneratorViewModel @Inject constructor(
         }
     }
 
-    fun reset() { _result.value = null; _error.value = null; _savedId.value = null; _streamingTokens.value = "" }
+    fun reset() { _result.value = null; _error.value = null; _savedId.value = null; _streamingTokens.value = ""; _useCustomLength.value = false; _customLengthText.value = ""; _length.value = "medium" }
 }

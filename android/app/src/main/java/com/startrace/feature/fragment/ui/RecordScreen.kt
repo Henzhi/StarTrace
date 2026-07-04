@@ -44,29 +44,35 @@ fun RecordScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(StarColors.Background)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 24.dp)
             .imePadding()
     ) {
-        // 标题
-        Text(
-            text = "记录碎片",
-            style = MaterialTheme.typography.headlineSmall.copy(
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.5.sp
-            ),
-            color = StarColors.OnBackground
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "捕捉瞬间灵感，化作星辰碎片",
-            style = MaterialTheme.typography.bodyMedium,
-            color = StarColors.OnSurface.copy(alpha = 0.5f)
-        )
+        // ══ 标题（固定在顶部） ══
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp)
+        ) {
+            Text(
+                text = "记录碎片",
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                ),
+                color = StarColors.OnBackground
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "捕捉瞬间灵感，化作星辰碎片",
+                style = MaterialTheme.typography.bodyMedium,
+                color = StarColors.OnSurface.copy(alpha = 0.5f)
+            )
+        }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // 1. 文本输入
+        // ══ 滚动内容 ══
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+        ) {
         FragmentInputCard(
             content = uiState.content,
             onContentChange = viewModel::updateContent
@@ -129,6 +135,7 @@ fun RecordScreen(
         )
 
         Spacer(modifier = Modifier.height(32.dp))
+        }
     }
 
     // 保存成功弹窗

@@ -59,6 +59,7 @@ fun GalaxyCanvas(
     val currentOffsetY by rememberUpdatedState(offsetY)
     val currentZoom by rememberUpdatedState(zoom)
     val currentNodes by rememberUpdatedState(nodes)
+    val currentSelectedId by rememberUpdatedState(selectedId)
 
     // 固定 seed 星点
     val starPositions = remember {
@@ -81,90 +82,73 @@ fun GalaxyCanvas(
                     }
                 }
             }
-            // 双击选点 + 长按拖拽
-            .pointerInput(draggingNodeId) {
+            // 单击选点/取消 + 长按选中 + 仅已选中节点可长按拖拽
+            .pointerInput(draggingNodeId, selectedId) {
                 awaitEachGesture {
-                    // ── 第一次按下的分支 ──
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val downPos = down.position
 
-                    // 等待抬起或超时
+                    // 等待抬起或超时（短按 / 长按分流）
                     val up = withTimeoutOrNull(doubleTapTimeout) {
                         waitForUpOrCancellation()
                     }
 
                     if (up != null) {
-                        // ✅ 手指抬起了 → 第一次点击完成
-                        // 等待第二次按下（双击判定）
-                        val down2 = withTimeoutOrNull(doubleTapTimeout) {
-                            awaitFirstDown(requireUnconsumed = false)
-                        }
-
-                        if (down2 != null) {
-                            // 第二次按下 — 检测是否命中节点
-                            val node = hitTestNode(
-                                down2.position.x, down2.position.y,
-                                size.width.toFloat(), size.height.toFloat(),
-                                density, currentZoom, currentOffsetX, currentOffsetY, currentNodes
-                            )
-                            if (node != null) {
-                                // ✅ 双击命中节点 → 开始拖拽
-                                viewModel.startDragging(node.id)
-                                down2.consume()
-                                // 追踪手指直到抬起
-                                var prevX = down2.position.x; var prevY = down2.position.y
-                                var dragging = true
-                                while (dragging) {
-                                    val ev = awaitPointerEvent()
-                                    val ch = ev.changes.firstOrNull { it.id == down2.id }
-                                    if (ch == null || !ch.pressed) dragging = false
-                                    else {
-                                        ch.consume()
-                                        val pos = ch.position
-                                        viewModel.dragNode((pos.x - prevX) / density / currentZoom, (pos.y - prevY) / density / currentZoom)
-                                        prevX = pos.x; prevY = pos.y
-                                    }
-                                }
-                                viewModel.endDragging()
-                            }
-                            return@awaitEachGesture
-                        }
-
-                        // 无第二次按下 → 单击选点
+                        // ── 单击 ──
                         val node = hitTestNode(
                             downPos.x, downPos.y,
                             size.width.toFloat(), size.height.toFloat(),
                             density, currentZoom, currentOffsetX, currentOffsetY, currentNodes
                         )
-                        if (node != null) viewModel.selectNode(node.id)
-                        else viewModel.deselectNode()
+                        if (node != null) {
+                            // 点击已选中节点 → 取消选中；否则选中
+                            if (node.id == currentSelectedId) viewModel.deselectNode()
+                            else viewModel.selectNode(node.id)
+                        } else {
+                            viewModel.deselectNode()
+                        }
                         return@awaitEachGesture
                     }
 
-                    // 手指未在双击超时内抬起 → 长按
-                    // 检测是否命中节点 → 开始拖拽
+                    // ── 长按 ──
                     val node = hitTestNode(
                         downPos.x, downPos.y,
                         size.width.toFloat(), size.height.toFloat(),
                         density, currentZoom, currentOffsetX, currentOffsetY, currentNodes
                     )
                     if (node != null) {
-                        viewModel.startDragging(node.id)
-                        var prevX = down.position.x; var prevY = down.position.y
-                        var dragging = true
-                        while (dragging) {
-                            val ev = awaitPointerEvent()
-                            val ch = ev.changes.firstOrNull { it.id == down.id }
-                            if (ch == null || !ch.pressed) dragging = false
-                            else {
+                        if (node.id == currentSelectedId) {
+                            // ✅ 长按已选中节点 → 开始拖拽
+                            viewModel.startDragging(node.id)
+                            down.consume()
+                            var prevX = down.position.x; var prevY = down.position.y
+                            var dragging = true
+                            while (dragging) {
+                                val ev = awaitPointerEvent()
+                                val ch = ev.changes.firstOrNull { it.id == down.id }
+                                if (ch == null || !ch.pressed) dragging = false
+                                else {
+                                    ch.consume()
+                                    val pos = ch.position
+                                    viewModel.dragNode((pos.x - prevX) / density / currentZoom, (pos.y - prevY) / density / currentZoom)
+                                    prevX = pos.x; prevY = pos.y
+                                }
+                            }
+                            viewModel.endDragging()
+                        } else {
+                            // 长按未选中节点 → 仅选中，不拖拽
+                            viewModel.selectNode(node.id)
+                            down.consume()
+                            // 清空该手指的后续事件，避免穿透到平移
+                            while (true) {
+                                val ev = awaitPointerEvent()
+                                val ch = ev.changes.firstOrNull { it.id == down.id }
+                                if (ch == null || !ch.pressed) break
                                 ch.consume()
-                                val pos = ch.position
-                                viewModel.dragNode((pos.x - prevX) / density / currentZoom, (pos.y - prevY) / density / currentZoom)
-                                prevX = pos.x; prevY = pos.y
                             }
                         }
-                        viewModel.endDragging()
                     }
+                    // 长按空白 → 不消费，平移缩放正常工作
                 }
             }
     ) {
@@ -268,5 +252,7 @@ private fun hitTestNode(
     val ex = (tapX - canvasW / 2f) / (zoom * density) - offsetX
     val ey = (tapY - canvasH / 2f) / (zoom * density) - offsetY
     val hit = nodes.minByOrNull { val dx = it.x - ex; val dy = it.y - ey; dx * dx + dy * dy }
-    return if (hit != null && kotlin.math.sqrt((hit.x - ex) * (hit.x - ex) + (hit.y - ey) * (hit.y - ey)) < 80f / zoom) hit else null
+    // 命中半径为固定 48 屏幕像素，不随缩放放大。缩小时需要点得更精准
+    val hitRadius = 48f / (zoom * density)
+    return if (hit != null && kotlin.math.sqrt((hit.x - ex) * (hit.x - ex) + (hit.y - ey) * (hit.y - ey)) < hitRadius) hit else null
 }

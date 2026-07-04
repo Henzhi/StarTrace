@@ -1,5 +1,6 @@
 package com.startrace.feature.story.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.startrace.core.database.entity.StoryEntity
 import com.startrace.design.theme.StarColors
@@ -26,7 +28,6 @@ import java.util.*
 /**
  * 故事页 — 故事库列表 + 生成入口
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StoryScreen(
     onNavigateToGenerate: () -> Unit = {}
@@ -48,49 +49,69 @@ fun StoryScreen(
         return
     }
 
-    Scaffold(
-        containerColor = StarColors.Background,
-        topBar = {
-            TopAppBar(
-                title = { Text("故事库", color = StarColors.OnBackground) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = StarColors.Surface)
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showGenerator = true },
-                containerColor = StarColors.Primary
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(StarColors.Background)
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            // ══ 标题（与 记录碎片 同款风格） ══
+            Column(
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp)
             ) {
-                Icon(Icons.Default.Add, "生成故事", tint = StarColors.OnPrimary)
+                Text(
+                    text = "故事库",
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    ),
+                    color = StarColors.OnBackground
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "AI 将灵感碎片编织成的星辰故事",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = StarColors.OnSurface.copy(alpha = 0.5f)
+                )
             }
-        }
-    ) { padding ->
-        if (uiState.stories.isEmpty() && !uiState.isLoading) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("📖", style = MaterialTheme.typography.displayMedium)
-                    Spacer(Modifier.height(12.dp))
-                    Text("星辰书库", style = MaterialTheme.typography.titleMedium, color = StarColors.OnBackground)
-                    Text("用 AI 将灵感碎片编织成故事", style = MaterialTheme.typography.bodySmall, color = StarColors.OnSurface)
-                    Spacer(Modifier.height(16.dp))
-                    Button(onClick = onNavigateToGenerate, colors = ButtonDefaults.buttonColors(containerColor = StarColors.Primary)) {
-                        Icon(Icons.Default.AutoAwesome, null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("生成第一个故事")
+
+            if (uiState.stories.isEmpty() && !uiState.isLoading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("📖", style = MaterialTheme.typography.displayMedium)
+                        Spacer(Modifier.height(12.dp))
+                        Text("星辰书库", style = MaterialTheme.typography.titleMedium, color = StarColors.OnBackground)
+                        Text("用 AI 将灵感碎片编织成故事", style = MaterialTheme.typography.bodySmall, color = StarColors.OnSurface)
+                        Spacer(Modifier.height(16.dp))
+                        Button(onClick = onNavigateToGenerate, colors = ButtonDefaults.buttonColors(containerColor = StarColors.Primary)) {
+                            Icon(Icons.Default.AutoAwesome, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("生成第一个故事")
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 80.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(uiState.stories, key = { it.id }) { story ->
+                        StoryCard(story = story, dateFormat = dateFormat, onClick = { selectedStory = story })
                     }
                 }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(uiState.stories, key = { it.id }) { story ->
-                    StoryCard(story = story, dateFormat = dateFormat, onClick = { selectedStory = story })
-                }
-                item { Spacer(Modifier.height(72.dp)) /* FAB 空间 */ }
-            }
+        }
+
+        // FAB
+        FloatingActionButton(
+            onClick = { showGenerator = true },
+            containerColor = StarColors.Primary,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+        ) {
+            Icon(Icons.Default.Add, "生成故事", tint = StarColors.OnPrimary)
         }
     }
 }
