@@ -70,7 +70,7 @@ fun StoryGeneratorView(
             }
 
             if (uiState.savedStoryId != null) {
-                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("🎉", style = MaterialTheme.typography.displayMedium)
                         Spacer(Modifier.height(12.dp))

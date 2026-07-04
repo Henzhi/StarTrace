@@ -48,6 +48,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     // Room schema export for migration testing
@@ -115,11 +116,6 @@ dependencies {
     testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.11.3")
     testImplementation("androidx.test:core:1.6.1")
     testImplementation("io.mockk:mockk:1.13.13")
-
-    // 同时支持 JUnit4 和 JUnit5 测试
-    tasks.withType<Test> {
-        useJUnitPlatform()
-    }
     testImplementation("app.cash.turbine:turbine:1.2.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation("org.robolectric:robolectric:4.13")
@@ -128,4 +124,9 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
     androidTestImplementation(composeBom)
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+}
+
+// 同时支持 JUnit4 和 JUnit5 测试
+tasks.withType<Test> {
+    useJUnitPlatform()
 }
