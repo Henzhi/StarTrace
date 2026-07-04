@@ -43,6 +43,11 @@ Desktop.ini
 .env.local
 .env.*.local
 
+# ===== Signing =====
+*.jks
+*.keystore
+keystore.properties
+
 # ===== Docker =====
 docker-compose.override.yml
 
@@ -50,3 +55,5 @@ docker-compose.override.yml
 .workbuddy/
 .codebuddy/
 .trae/
+
+docs/
