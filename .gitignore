@@ -48,4 +48,5 @@ docker-compose.override.yml
 
 # ===== WorkBuddy =====
 .workbuddy/
+.codebuddy/
 .trae/
