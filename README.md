@@ -196,7 +196,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ### 📧 Contact
 
 - Email: <startrace2026@163.com>
-- GitHub: [MaHuHu-Dev](https://github.com/MaHuHu-Dev)
 
 ***
 
@@ -213,7 +212,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 #### 系统要求
 
 - Android 8.0（API Level 26）或更高版本
-- 约 3MB 存储空间
+- 约 30MB 存储空间
 
 #### 安装步骤
 
