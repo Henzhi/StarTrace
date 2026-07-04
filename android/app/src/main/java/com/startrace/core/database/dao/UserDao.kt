@@ -31,4 +31,8 @@ interface UserDao {
     /** 更新 Token */
     @Query("UPDATE users SET token = :token, last_login_at = :ts WHERE id = :userId")
     suspend fun updateToken(userId: String, token: String, ts: Long = System.currentTimeMillis())
+
+    /** 更新头像路径 */
+    @Query("UPDATE users SET avatar_path = :path WHERE id = :userId")
+    suspend fun updateAvatar(userId: String, path: String)
 }

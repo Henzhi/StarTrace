@@ -113,4 +113,20 @@ class ProfileViewModel @Inject constructor(
     fun clearError() {
         _error.value = null
     }
+
+    fun uploadAvatar(imageBytes: ByteArray) {
+        viewModelScope.launch {
+            try {
+                userRepository.saveAvatar(imageBytes)
+            } catch (e: Exception) {
+                _error.value = "头像上传失败"
+            }
+        }
+    }
+
+    fun clearAvatar() {
+        viewModelScope.launch {
+            userRepository.clearAvatar()
+        }
+    }
 }

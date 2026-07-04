@@ -1,5 +1,7 @@
 package com.startrace.feature.profile.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -28,10 +30,16 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.startrace.design.theme.StarColors
 import com.startrace.feature.profile.viewmodel.ProfileViewModel
 import android.content.Intent
 import android.net.Uri
+import android.provider.MediaStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ProfileScreen(
@@ -41,6 +49,26 @@ fun ProfileScreen(
     val uiState by viewModel.uiState.collectAsState()
     var showAboutDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
+
+    val coroutineScope = rememberCoroutineScope()
+    val pickImageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            coroutineScope.launch {
+                try {
+                    val inputStream = context.contentResolver.openInputStream(it)
+                    val bytes = inputStream?.readBytes()
+                    inputStream?.close()
+                    if (bytes != null) {
+                        viewModel.uploadAvatar(bytes)
+                    }
+                } catch (e: Exception) {
+                    viewModel.clearError()
+                }
+            }
+        }
+    }
 
     Box(
         modifier = Modifier.fillMaxSize().background(
@@ -59,9 +87,27 @@ fun ProfileScreen(
 
             Surface(color = StarColors.Surface, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = StarColors.Primary.copy(alpha = 0.15f), shape = CircleShape, modifier = Modifier.size(56.dp)) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                            Text(uiState.username.take(1).uppercase(), style = MaterialTheme.typography.headlineSmall, color = StarColors.Primary, fontWeight = FontWeight.Bold)
+                    val avatarPath = uiState.user?.avatarPath
+                    Box(modifier = Modifier.clickable { pickImageLauncher.launch("image/*") }) {
+                        if (avatarPath.isNullOrEmpty()) {
+                            Surface(color = StarColors.Primary.copy(alpha = 0.15f), shape = CircleShape, modifier = Modifier.size(56.dp)) {
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                    Text(uiState.username.take(1).uppercase(), style = MaterialTheme.typography.headlineSmall, color = StarColors.Primary, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        } else {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalContext.current)
+                                    .data(avatarPath)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = "用户头像",
+                                modifier = Modifier.size(56.dp).clip(CircleShape),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        }
+                        Surface(color = StarColors.Primary, shape = CircleShape, modifier = Modifier.size(20.dp).align(Alignment.BottomEnd)) {
+                            Icon(Icons.Default.CameraAlt, "更换头像", tint = StarColors.OnPrimary, modifier = Modifier.size(12.dp).padding(4.dp))
                         }
                     }
                     Spacer(Modifier.width(16.dp))

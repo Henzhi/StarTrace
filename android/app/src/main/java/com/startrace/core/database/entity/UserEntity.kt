@@ -14,7 +14,10 @@ data class UserEntity(
 
     val username: String,
 
-    val token: String,                  // Sa-Token JWT
+    val token: String,
+
+    @ColumnInfo(name = "avatar_path")
+    val avatarPath: String = "",
 
     @ColumnInfo(name = "joined_at")
     val joinedAt: Long = System.currentTimeMillis(),

@@ -73,6 +73,15 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
+/**
+ * V3 → V4 迁移：users 表添加 avatar_path 列
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE users ADD COLUMN avatar_path TEXT NOT NULL DEFAULT ''")
+    }
+}
+
 @Database(
     entities = [
         FragmentEntity::class,
@@ -81,7 +90,7 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         StoryFragmentRef::class,
         UserEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {

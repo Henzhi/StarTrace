@@ -2,13 +2,18 @@ package com.startrace.core.data.repository
 
 import android.content.Context
 import android.provider.Settings
+import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.startrace.core.database.dao.UserDao
 import com.startrace.core.database.entity.UserEntity
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.util.UUID
 import javax.inject.Inject
@@ -112,4 +117,47 @@ class LocalUserRepository @Inject constructor(
     }
 
     suspend fun getCachedUser(): UserEntity? = userDao.getLoggedIn()
+
+    val avatarPathFlow: Flow<String> = userFlow.map { it?.avatarPath ?: "" }
+
+    suspend fun saveAvatar(imageBytes: ByteArray): String {
+        return withContext(Dispatchers.IO) {
+            try {
+                val user = ensureLocalUser()
+                val avatarDir = File(context.filesDir, "avatars")
+                if (!avatarDir.exists()) {
+                    avatarDir.mkdirs()
+                }
+                val avatarFile = File(avatarDir, "avatar_${user.id}.png")
+                FileOutputStream(avatarFile).use { it.write(imageBytes) }
+                val path = avatarFile.absolutePath
+                userDao.updateAvatar(user.id, path)
+                path
+            } catch (e: Exception) {
+                Log.e("LocalUserRepository", "Failed to save avatar", e)
+                throw e
+            }
+        }
+    }
+
+    suspend fun clearAvatar() {
+        val user = ensureLocalUser()
+        val avatarDir = File(context.filesDir, "avatars")
+        val avatarFile = File(avatarDir, "avatar_${user.id}.png")
+        if (avatarFile.exists()) {
+            avatarFile.delete()
+        }
+        userDao.updateAvatar(user.id, "")
+    }
+
+    suspend fun getAvatarFile(): File? {
+        return runCatching {
+            val user = userDao.getLoggedIn()
+            if (user?.avatarPath.isNullOrEmpty()) {
+                null
+            } else {
+                File(user?.avatarPath ?: "")
+            }
+        }.getOrNull()
+    }
 }
